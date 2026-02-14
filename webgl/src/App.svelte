@@ -532,7 +532,7 @@
   <aside class="pane solved-pane">
     <header>
       <h2>Solved</h2>
-      <p>Click any solved rectangle to copy it into Solver.</p>
+      <p>{isTouchDevice ? 'Tap any solved rectangle to copy it into Solver.' : 'Click any solved rectangle to copy it into Solver.'}</p>
     </header>
 
     {#if solvedSolutions.length === 0}
