@@ -273,7 +273,7 @@
     dispatch('cellhover', null);
   }
 
-  function onClick(event: PointerEvent): void {
+  function onPointerDown(event: PointerEvent): void {
     if (!interactive) {
       return;
     }
@@ -281,6 +281,7 @@
     if (!cell) {
       return;
     }
+    dispatch('cellhover', cell);
     dispatch('cellclick', cell);
   }
 
@@ -317,9 +318,9 @@
 <canvas
   bind:this={canvas}
   class:interactive
+  on:pointerdown={onPointerDown}
   on:pointermove={onMove}
   on:pointerleave={onLeave}
-  on:click={onClick}
 />
 
 <style>
@@ -329,6 +330,7 @@
     border-radius: 10px;
     display: block;
     background: #05070f;
+    touch-action: none;
   }
 
   .interactive {

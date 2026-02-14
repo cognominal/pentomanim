@@ -109,22 +109,32 @@
     status = message;
   }
 
-  function commitGhost(): void {
+  function commitPlacement(candidate: Placement): void {
     if (isAnimating) {
       return;
     }
-    if (!ghostPlacement || !ghostValid) {
+    if (!inBounds(candidate.cells) || !canApplyPlacement(visiblePlacements, candidate)) {
       return;
     }
     truncateToPrefix();
-    placements = [...placements, clonePlacements([ghostPlacement as Placement])[0]];
+    placements = [...placements, clonePlacements([candidate])[0]];
     prefixCount = placements.length;
-    status = `${ghostPlacement.name} placed.`;
+    status = `${candidate.name} placed.`;
 
     if (placements.length === PIECE_ORDER.length) {
       addSolved(placements);
       clearSolverAfterSolved('Rectangle solved manually. Added to Solved; Solver cleared.');
     }
+  }
+
+  function placementAtCell(row: number, col: number): Placement | null {
+    if (!selectedPiece || !transformed) {
+      return null;
+    }
+    return {
+      name: selectedPiece,
+      cells: placeAtAnchor(transformed, row, col),
+    };
   }
 
   function removePieceAt(row: number, col: number): boolean {
@@ -149,10 +159,15 @@
       return;
     }
     const { row, col } = event.detail;
+    hover = { row, col };
     if (removePieceAt(row, col)) {
       return;
     }
-    commitGhost();
+    const candidate = placementAtCell(row, col);
+    if (!candidate) {
+      return;
+    }
+    commitPlacement(candidate);
   }
 
   function solveNow(): void {
