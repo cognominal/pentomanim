@@ -148,6 +148,28 @@ header p {
   border-radius: 2px;
 }
 
+main.touch-mode .piece-bank {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 0.22rem;
+}
+
+main.touch-mode .piece-btn {
+  min-height: 42px;
+  padding: 0.18rem;
+}
+
+main.touch-mode .mini {
+  gap: 0;
+  padding: 0;
+  background: transparent;
+  grid-template-rows: repeat(var(--rows), 6px);
+  grid-template-columns: repeat(var(--cols), 6px);
+}
+
+main.touch-mode .mini .cell {
+  border-radius: 0;
+}
+
 .active-preview {
   display: grid;
   grid-template-rows: repeat(var(--rows), 8px);
@@ -275,5 +297,9 @@ input[type='range'] {
 
   .piece-bank {
     grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  main.touch-mode .piece-bank {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
   }
 }

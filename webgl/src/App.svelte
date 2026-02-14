@@ -394,7 +394,7 @@
 
 <svelte:window on:keydown={onKey} on:click={closeRepoLinkOnOutsideClick} />
 
-<main>
+<main class:touch-mode={isTouchDevice}>
   {#if !isTouchDevice}
     <div class="repo-toggle">
       <button
@@ -438,7 +438,9 @@
           disabled={disabled || isAnimating}
           aria-label={`Select ${name}`}
         >
-          <span class="label">{name}</span>
+          {#if !isTouchDevice}
+            <span class="label">{name}</span>
+          {/if}
           <span
             class="mini"
             style={`--rows:${dims.rows};--cols:${dims.cols};--c:${PIECE_COLORS[name]}`}
