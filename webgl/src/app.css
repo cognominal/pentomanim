@@ -24,6 +24,57 @@ main {
   grid-template-columns: minmax(0, 1fr) 300px;
 }
 
+.repo-toggle {
+  position: fixed;
+  top: 0.75rem;
+  right: 0.75rem;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.repo-icon-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  background: #111a32;
+  border: 1px solid #3b486d;
+}
+
+.repo-icon-btn.active {
+  border-color: #8ecae6;
+}
+
+.repo-icon-btn svg {
+  width: 20px;
+  height: 20px;
+}
+
+.repo-popover {
+  max-width: min(72vw, 360px);
+  background: #0f1730;
+  border: 1px solid #3b486d;
+  border-radius: 10px;
+  padding: 0.45rem 0.55rem;
+  box-shadow: 0 14px 32px rgba(0, 0, 0, 0.42);
+}
+
+.repo-popover a {
+  color: #b8d6ff;
+  text-decoration: none;
+  font-size: 0.82rem;
+  word-break: break-all;
+}
+
+.repo-popover a:hover {
+  text-decoration: underline;
+}
+
 .pane {
   border: 1px solid #29334f;
   border-radius: 14px;
@@ -212,6 +263,10 @@ input[type='range'] {
 @media (max-width: 980px) {
   main {
     grid-template-columns: 1fr;
+  }
+
+  .repo-toggle {
+    display: none;
   }
 
   .solved-pane {

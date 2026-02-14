@@ -21,6 +21,7 @@
     ('ontouchstart' in window ||
       window.matchMedia?.('(pointer: coarse)').matches ||
       navigator.maxTouchPoints > 0);
+  const repoUrl = 'https://github.com/cognominal/pentomanim';
 
   let selectedPiece: PieceName | null = 'F';
   let pose: Pose = { rotation: 0, flipped: false };
@@ -35,6 +36,7 @@
   let animationTimer: ReturnType<typeof setInterval> | null = null;
   let animationStepsUsed = 0;
   let speedSlider = 0;
+  let showRepoLink = false;
   const MIN_INITIAL_SPEED = 0.01;
   const MAX_INITIAL_SPEED = 1000000;
   const SPEED_EXP_RANGE = Math.log2(MAX_INITIAL_SPEED / MIN_INITIAL_SPEED);
@@ -238,6 +240,20 @@
     }
   }
 
+  function toggleRepoLink(): void {
+    showRepoLink = !showRepoLink;
+  }
+
+  function closeRepoLinkOnOutsideClick(event: MouseEvent): void {
+    if (!showRepoLink) {
+      return;
+    }
+    const target = event.target as HTMLElement | null;
+    if (!target || !target.closest('.repo-toggle')) {
+      showRepoLink = false;
+    }
+  }
+
   function onBoardHover(event: CustomEvent<{ row: number; col: number } | null>): void {
     if (isAnimating) {
       return;
@@ -376,9 +392,33 @@
   }
 </script>
 
-<svelte:window on:keydown={onKey} />
+<svelte:window on:keydown={onKey} on:click={closeRepoLinkOnOutsideClick} />
 
 <main>
+  {#if !isTouchDevice}
+    <div class="repo-toggle">
+      <button
+        class="repo-icon-btn"
+        class:active={showRepoLink}
+        on:click={toggleRepoLink}
+        aria-label="Toggle GitHub repo link"
+        title="Project repository"
+      >
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path
+            fill="currentColor"
+            d="M12 .5C5.65.5.5 5.68.5 12.07c0 5.1 3.3 9.42 7.88 10.95.58.1.79-.26.79-.57l-.02-2.03c-3.2.7-3.88-1.55-3.88-1.55-.53-1.34-1.28-1.7-1.28-1.7-1.05-.72.08-.7.08-.7 1.15.08 1.76 1.2 1.76 1.2 1.03 1.77 2.7 1.26 3.36.97.1-.75.4-1.26.72-1.54-2.55-.3-5.23-1.28-5.23-5.72 0-1.26.44-2.3 1.17-3.1-.12-.3-.5-1.5.11-3.12 0 0 .96-.31 3.14 1.2a10.77 10.77 0 0 1 5.72 0c2.18-1.51 3.14-1.2 3.14-1.2.61 1.62.23 2.82.11 3.12.73.8 1.17 1.84 1.17 3.1 0 4.45-2.68 5.41-5.24 5.7.41.35.78 1.06.78 2.15l-.02 3.19c0 .32.21.68.8.57A11.6 11.6 0 0 0 23.5 12.07C23.5 5.68 18.35.5 12 .5Z"
+          />
+        </svg>
+      </button>
+      {#if showRepoLink}
+        <div class="repo-popover">
+          <a href={repoUrl} target="_blank" rel="noopener noreferrer">{repoUrl}</a>
+        </div>
+      {/if}
+    </div>
+  {/if}
+
   <section class="pane solver-pane">
     <header>
       <h2>Solver</h2>
