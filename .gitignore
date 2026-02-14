@@ -1,0 +1,26 @@
+# OS
+.DS_Store
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+
+# Root cache
+/.pycache/
+
+# Manim generated artifacts
+/manim/media/
+/manim/__pycache__/
+
+# WebGL generated artifacts
+/webgl/node_modules/
+/webgl/dist/
+/webgl/.svelte-kit/
+/webgl/.vite/
+/webgl/*.tsbuildinfo
+/webgl/vite.config.js
+/webgl/vite.config.d.ts

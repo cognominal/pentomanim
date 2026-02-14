@@ -1,0 +1,101 @@
+#! /usr/bin/perl
+
+=head1 README
+
+This program has been tested with perl5.005 on linux 2.0.32 on a linux
+console.  It is believed to run on a perl5.004. This program uses the
+graphic characters of the linux console that I believe to be ISO 8859
+compatible. I use the ANSI cursor motion sequence.
+    print "[$z;0H"; 
+
+A totally random seed or a garbaged one does not define a valid
+problem any more than a random DNA bases sequence codes a functional
+protein.  So one must be careful to feed correct seeds to the solver.
+
+I have packed a few selected seeds in this README; so you can run the
+solver directly with a selected seed an interactvely selected seed:
+perl README
+
+perl README seed20x3
+
+Beware, the SOLUTION file contains graphic material.  It explains what
+class of problem can be solved, how to generate potent seeds; for the
+really impotent, it includes at no extra charge a premium seeder
+program as well. This is *NOT* a multi level marketting program and
+you don't need to fork money upfront. If you are not interested and
+are not afraid to pass on a once-in-a-life opportunity, you don't
+need to read further, just hit the button <remove me from the list>.
+
+Sorry... I got carried away.
+
+TEASER: listing the program with a pager.
+
+A pager, in its default setting, may really hide a clue.  Sometimes
+less is more, but less, by trying to do more, does definitively less
+in that case, and ends up to be useless. What about more? I don't know
+because, on my Linux box, I have made more to be totally less. Anyway,
+how could have I made more more or less less?
+
+=cut
+
+
+# The hexafied seeds have been generated:
+#  seed some_parameters |  perl -ne 's/(.)/printf "%02x", ord $1/ge'
+
+
+my ($seednm) = $ARGV[0];
+
+my $sd;
+while(<DATA>) { 
+   next if m/^\s*$/;
+   next if s/^=(.*)/$sd=$1/e; 
+   if (m/^[^=].*/) {
+      push @seed, $sd;
+      $seed{$sd}=$&;
+   }
+}
+
+while(1) {
+   my $i;
+   solver($seed{$seednm}) if defined $seed{$seednm};
+   print "The available seeds are:   ";
+    grep {  print $i++, ": $_  "; } @seed;
+   print "\nPlease, give a seed number: ";
+   $_=<STDIN>;
+   m/(\d+)/; 
+   $seednm= $seed[$1];
+}
+
+sub solver {
+  $_=$_[0];  
+  $h="0123456789abcdef";
+  s/(.)(.)/chr 16*index($h,$1) + index $h,$2 /sge;
+  print $_;
+  open P, "|perl -0777 solver" or die "can't lauch solver";
+  print P $_;
+  close P;  
+  exit 0;
+}
+
+
+
+__END__
+=trivial
+030512567f201234f1
+=simple
+050627abcf125678f101234f112567f20126bf10
+=20x3
+03141567bf125678f11567af12567af10167cf10126bf101238f123567f1015abf112567f127abcf101234f1
+=15x4
+040f1567bf127abcf1015abf11567af10126bf101238f123567f10167cf112567f101234f12567af125678f1
+=12x5
+050c0126bf11567af123567f125678f11567bf1015abf101234f10167cf12567af101238f127abcf112567f1
+=10x6
+060a23567f12567af1015abf11567bf101238f127abcf10126bf10167cf101234f11567af112567f125678f1
+=tri1
+000012567f90
+=tri2
+000201238f412567f51567bf00
+=tri3
+000301238f1015abf10167cf11567bf025678f101234f12567af123567f127abcf11567af1
+

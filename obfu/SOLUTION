@@ -1,0 +1,841 @@
+#  SOLUTION of my "Most Creative" entry in the 1998 "The Perl Journal"
+#  obfuscation contest
+
+# 2-dimensional square polyominos solving; printing on a ANSI terminal
+# Stephane Payrard <stef@francenet.fr>
+# home URL: http://francenet.fr/~stef
+
+# Disclaimers:
+#   1/ This document contains non printable graphical ASCII
+#   2/ It has been written by a non native speaker.
+
+"a place where no man has gone before"
+      grafitti in the Startrek women toilets
+
+To make my program stand out in the creative category of the
+obfuscation contest, I had to pick for it an odd place that Perl
+hackers will not think of.
+
+So, I decided to do no gratuitous obfuscation and certainly not to use
+any perl syntactic or semantic oddities without a reason. I would use
+Perl for its very expressiveness instead of playing artificial quirky
+parlor tricks.
+
+I had to design a program that did a complex enough, but nevertheless
+sensible task; it would produce some nice output with no obvious
+relationship to its apparently random input.  The possibly compressed
+input, the use of one letter symbols and of global variables, the
+"inlining" of function calls would just be useful steps to fit the
+program in the 1024 non whitespace characters limit of the contest.
+
+That would be the supreme obfuscation: to present as obfuscated a
+program that would just plainly smart.
+
+Recursive algorithms can do powerful tasks and produce impressive
+outputs. And it may be difficult to figure out what a non trivial
+recursive algorithm does.  Also, the most efficient representation to
+solve a problem is not always the most easy to understand. So, a
+program that could combine recursivity with non trivial data structure
+with a smart internal representaton would be tough enough to figure out
+without running it.
+
+Also, a program that shuffles a lot of data and produce some sensible
+output would be as impressive as a card manipulator that apparently
+randomly shuffles a card deck and eventually produces a perfectly
+sorted deck.
+
+So, I needed some kind of "neguentropic" recursive program: it would
+create order out of apparent disorder.  Fast convolution or other Fast
+Fourier Transform would not have an intuitive enough appeal.  Anagram
+generators, Hanoi towers, Convay life automata were to simple. Also,
+all this stuff did not plainly fit this last "order out of disorder"
+critieria. But I knew my search was heading in the right direction.
+
+Eventually, I have chosen am "intuitive" class of problems. They can be
+solved with a recursive algorithm of the right complexity for the 1024
+characters constraint of this contest: filling a grid with square
+polyominoes.  
+
+Being a special kind of jig-saw puzzle, that class of a problem is
+best illustrated by the drawing of one of its solved instances (albeit
+imperfect and dependant on your use of a correctly proportionned
+monspace font).
+
+Fig: Fitting the 12 pentaminoes in a 20x3 rectangle.
+_________________________________________________________
+|   __|  |____________|  |__  |___  ___|  |________   |  |
+|  |__   ___|    |  _____| |__   |  |  ______|   __|__|  |
+|_____|__|_______|__|_________|__|__|__|________|________|
+
+
+A 1024 characters program that apparently demonstrates
+complex geometric abilities would kick asses (Pardon my French :). The
+result would be most impressive because there are thousands of square
+polyominoes problem and millions of solutions.
+
+B<vocabulary>: an orientation is an oriented piece.
+
+We can obtain all the eight legit orientations of a pentamino using
+combinations of two transformations: a rotation of 90 degrees and a
+flipping.
+
+Symmetry considerations reduces the 8 orientations of a a given
+pentamino to 1, 2, 4 or 8 distinct orientations as you can convince
+yourself by playing with the following four pentaminos.
+
+ _____      __       __________    __
+ | ___|  __|  |__   |__________|  |  |__
+ | |__  |__    __|              __|   __|
+ |____|    |__|                |_____|
+
+
+B<the algorithm>: 
+
+At each level of the recursion, we successively try each orientation
+of each free piece. To do so, we try to place the first square of an
+orientation in the first free square of the board and see if the other
+squares of the orientation fall in free squares of the board.  Each
+time we can fit an oriented piece, we can go deeper in the recursion.
+The recursion ends when we get all the pieces in the board.
+
+B<an optimization>:
+
+"First free square" implies an ordering on the squares of the board.
+A good ordering permits to early detect that the current layout of the
+pieces on the board will not lead to a solution. An example will show
+that an ordering that numerates squares along the shortest dimension
+first is a good ordering.
+
+Example: filling the 3x20 rectangle with the 12 pentominoes. One piece
+is already on the board. Because of the isolated square, this initial
+setting is hopeless. The good ordering detects it soon: the algorithm
+tries every orientation starting at square 3, than the third pentamino
+must use the square 4, the isolated one, and cannot without
+overlapping.  A bad ordering leads deeper in the recursion and
+uselessly tries many combinations before giving up.
+
+     ______ isolated square
+    |
+    v
+______________ _ _
+|  |__|  |
+|________|
+|
+---------------- - -
+
+Good ordering    Bad ordering
+
+_________ _ _      ____________ _ _
+|1 4 7             |1 2 3 4 5
+|2 5               |
+|3 6               |
+--------- - -      ---------- - -
+
+The ordering of the board squares hints as well to a
+data representation.
+
+B<data representation>: 
+
+creating 4 triangles with 6 matches require the initiative to use the
+third dimension so as to make a tetrahedron.
+
+Here, instead of adding a dimension to the problem, we remove one.  We
+fold the rectangular board to be filled to a unidimensional array
+using a bijective (one to one) transformation that fold a m x n
+board to an unidimensional line. We calculate what we call the indice
+i of a square from its coordinates (x,y)
+
+     i = x * m + y
+
+
+The problem of a piece sliding off the board edge is translated
+to a piece being wrapped:
+
+
+________________ _         ____________________ _
+|   __|  |__               |  |__    __|
+|  |__    __|              |     |__|
+|     |__|                 |         __
+|______________ _ _        |________|__|_______  _ _
+
+
+We choose to pre-fill the four sides of the board so that the "sliding
+off the edge" becomes a square occupancy problem and does not require
+any special code. More precisely, the special code is factored out of
+the puzzled solving code and is move to initialization code.
+
+So with 256x256 board, we end up handling up to 254x254 problem and
+the folding becomes: C<i = x << 8 + y>
+
+      @p = (i @o); 
+      map {
+        push @p,  i ( @o =  &{ (
+                 sub  { map { $_>>8|( $_ & 255)<<8}  @_ },  # flipping
+                 sub  { map { $_>>8|(~$_&  255)<<8}  @_ }   # rotation
+        ) [$_]  } (@o) )
+      }  split //,1110111;  # rot, rot, rot, flip, rot, rot, rot
+
+
+
+With these conventions, testing an orientation becomes a one
+liner. C<$free> is the first free square of the board C<$board> so the
+first square of the "normalized" orientation is already fitted:
+
+  sub testor {  map { return 0 if $board[$free_sq+$_] } @_; 1 }
+
+
+B<mysterious "seeding">: 
+
+we feed the program with a mysterious binary string that happens to
+specify the set of pieces in the most compact way possible with a
+simple algorithm.
+
+We fit the coordinates (x,y) of a pentamino square in a nybble by using
+a folding formula similar to the previous one; w stands for the width
+of the piece enclosing rectangle:
+
+     i := y * 5 + x.
+
+So a piece is encoded by a string that is a sequence of nybbles, one per square. We
+want to support pieces with different sizes and possibly have multiple
+instances of a piece. We do that by using the nybble with value 15 as
+a piece terminator followed by a nybble indicating the number of
+instances of the piece. We prepend the string with two octets
+indicating the dimensions of the board to be filled. As a special case,
+if the first dimension is 0, it indicates that the problem is
+instead a triplication one and the second "dimension" is the indice
+of the piece to be triplicated.
+
+The seeding program is feeded to the input of the solver:
+          seed | solve
+
+Without parameters, the seeder uses the twelve pentaminoes and try to
+solve the rectangle 6x10. With -t and no parameter, a random
+triplication problem is chosen.  The seeder also shuffles the
+polyominoes so the search sequence is different from run to run.  See
+the source of the seeder (appended to the current file) for more info
+on the many way to submit problem using the seeder.
+
+Relying on a seeder does not betray the spirit of the contest because the
+seeder just gives the data of the problem. They are not even given in
+the internal format used by the solver. The solver generates the set
+of unique orientations, not the feeder.
+
+
+B<Exercise left to the reader>: to make even more compact seed, one
+could think to define all the squares as an offset to the first
+one. The offset of that first square being always zero, we could drop
+it and save a nybble per piece. Where is the snag?
+
+=head1 Printing the solutions
+
+The contest did not specify a specific environment (OS and/or window
+system), and precluded the used of any CPAN module so I could not
+rely on Perl/Tk. I could have assigned a unique character to each
+instance of a piece to print the solution, one character per
+squere; That is dull and unredable. Upper case characters,
+being all the same height, would be slightly better.
+
+aabcccccdeefffghhhhi
+abbbjjdddkeefgggllhi
+acbjjjdkkkkefgllliii
+
+
+A real drawing using printable ASCII would require pretty
+complex code to handle pentominoes edge.  My "hand-drawing" 
+was inconsistent when dealing with that problem:
+
+_________________________________________________________
+|   __|  |____________|  |__  |___  ___|  |________   |  |
+|  |__   ___|    |  _____| |__   |  |  ______|   __|__|  |
+|_____|__|_______|__|_________|__|__|__|________|________|
+
+
+Hopefully ISO 8859 terminals have special characters to draw boxes.
+Using that capability, we wrap the cursor to its "home" (upper left
+edge) and redraw the board each time we add or remove a piece, showing
+in effect the progression of the search. We pause a few seconds at each
+solution.
+
+
+  Note: Assuning a ISO 8859 compatible setting, if you want to
+  correctly see the following drawing, you need an
+  appropriate editor or pager. Emacs or vim in their default modes
+  will do.  On a UNIX Bourne shell with the less pager:
+
+  export LESSBINFMT=*n%c
+  less SOLUTION
+
+
+ÚÄÄÄÂÄÂÄÄÄÄÄÂÄÂÄÄÄÄÄÄÄÂÄÂÄÂÄÂÄÄÄÄÄÂÄÄÄÄÄ¿   
+³ ÚÄÙ ÀÄ¿   ³ ÀÄÄÄ¿ ÚÄÙ ³ ³ ÀÄÄÄ¿ ÀÄÂÄ¿ ³   
+³ ÀÄ¿ ÚÄÁÄÄÄÁÄÄÄ¿ ÃÄÙ ÚÄÙ ÀÄ¿ ÚÄÁÄÄÄÙ ³ ³   
+ÀÄÄÄÁÄÁÄÄÄÄÄÄÄÄÄÁÄÁÄÄÄÁÄÄÄÄÄÁÄÁÄÄÄÄÄÄÄÁÄÙ   
+
+
+You now understand why we have prefilled the four board sides when two would
+have been enough to prevent wrapping: with that precaution, printing does
+not need special code to handle the board sides.
+
+
+=head1 What have we achieved so far?
+
+As a result of our data representation, the 2 dimensional nature of
+the problem to be solved is veiled until the very printing of the
+results.  Indeed. we directly convert the pieces from their first
+folded representation (in the seed string) to their second folded
+representation.  We never manipulate two dimensional arrays. Most of
+the program is devoted to convert the seed string, that minimally code
+the set of polyominoes, to generate the set of unique orientations for
+each polyomino and to print the board. The solving per se is shoved in
+very liitle code.
+
+I<Just like I said: supreme obfuscation is no obfuscation,
+just optimum data representation and smart algorithms.>
+
+
+=head2 The final twist
+
+But this is a Perl contest after all. We did set out to use no Perl
+specific trick without a purpose, and we ended up doing nothing in a
+way much different than in any other language.  What the point of
+smart optimizations when we could have more easily achieved speed with
+any compiled language?
+
+I did hint that I intended to do some kind of prestidigitation. I have
+openly done the preparatory moves but you have yet to see the trick
+that motivated them: I have hidden from you the very purpose of the
+folding of the problem to a unidimensional one. Indeed, our solving
+now can be expressed most elegantly in term of pattern matching and
+string bitwise operations.
+
+
+B<finding a free instance of a piece>: the value of the string p-th
+character gives the number of free instances of the p-th piece. We now
+can test if a piece of indice superior or equal to C<$p> is free,
+remove it from the free pieces set:
+
+  substr($instances,$p) =~ s/[^\0]/chr ord($&)-1/e
+
+Its index is: C<$p + length $`>.  
+
+B<testing the fit of piece oriented piece>: without regexps, we needed
+to explicitely calculate the first free square in the board and test
+for each square of an orientation if it fitted on the board. The code
+would have been something like:
+
+  sub frstfreesq {   while( $board[$free_sq] ){ $free_sq++; }  }
+  sub testor{   map { return 0 if(   $board[$free_sq+$_]) } @$_;  1 }
+
+By representing the board as a string instead of an array, we can code
+these two operations as a simple pattern matching with C<$board> being
+the board and C<$_> an orientation coded as a regexp.  Now, fitting on
+the board an orientation represented by its pattern <$_> with the
+first free square coverd is written:
+
+  $board =~ m/^([^\0]*?)$_/;
+
+Let us precise the specific conventions used.  In C<$board>, bytes of
+value C<\200> represent forbidden squares, bytes of value C<0> are
+free squares, the other allowed values are the indices of the piece
+occupying the corresponding square.  Orientations are coded as regexps
+strings. In orientations, a C<0> means an occupied squares and a dot
+stands for an empty square.  With this scheme, a square occupied by an
+orientation can match any board free square, and an orientation empty
+square can match any board square, free or not.
+
+B<Supporting a board with extra free squares>:
+
+that is, a board whose number of free squares is less than the sum of
+the number of squares of all the instances. We don't need to fill the
+first free square when matching a piece .  A naive approach would be:
+
+  $board =~ m/^(.*?)$_/
+
+But spaces left by a piece could be filled by the next piece. That
+means that we would hit many times the same board configuration with the
+same pieces with the same orientations but in a different order.
+
+if C<$last> is the position of the last match at the previous level of
+recursion, we must add some logic. I show only what is necessary for
+you to get the idea:
+
+ $board =~ m/^(.{$last}(.*?)$_)/;
+ $nextlast= length $2;
+
+B<The actual fitting of an orientation>: when an orientation matches,
+we calculate C<$o> from the orientation string. C<$o> is used to fit
+the orientation in the board with a I<string bitwise or> offseted
+appropriately. We later remove the orientation from the board using a
+I<string bitwise xor>.  C<$r>, used to calculate C<$o>, is the level of
+recursion starting at one. So each instance of any piece is represented
+on the board with a different C<$r>.
+
+   $o = $_; $o =~ s/./ $& eq "\0" ? chr $r : "\0" /ge; 
+   $board |= ('\0' x length $w) . $o ;  
+
+B<actual bites^H^H^H^H^bytes>
+
+If C<"\000....\000"> is an orientation of the piece of indice 2, we
+end up fitting this orientation with an offset of C<3> using the
+calculated C<$o> of value C<"\2\0\0\0\0\0\2">:
+
+  C<$board |= "\0" x 3 . "\2\0\0\0\0\0\2">
+
+ C<"\8\8\8\0\0\200\8\200\200\0\200  > # the board before
+ C<"\8\8\8\2\0\200\8\200\200\2\200  > # the board after fitting the orientation
+
+B<The whole recursive algorithm>: we now can write our whole search as
+a simple autarcic recursive routine; autarcic except for the call of
+C<printboard>. This routine is fed by C<$board>, the board,
+C<$instances>, the pieces instance "freeness string", and C<@a>, the
+array of pieces.
+
+  sub recursion {
+   local $p=0; # recursion stack: i-th (piece, orientation)
+	       # orientation is $_: automatically localized.
+   $r++;       # we must start at 1 because 0 means free square
+   while(substr($instances,$p) =~ s/[^\0]/chr ord($&)-1/e) {    # search next free piece instance
+      for(@{$a[$p+=length $`]}) {                               # go trhu all the orientations of the found piece
+	if( ($w)= $board =~ m/^(.*?)$_/ ) {                     # does the orientation fit?
+	  ($o = $_) = s/\./ $& eq "\0" ? chr $r : "\0"/ge; 
+	  $board |= ( "\0" x length $w) . $o ;          # Yes: add it to the board
+	  printboard;
+	  recursion;  
+	  $board ^= ("\0" x length $w) . $o             # remove the orientation from the board
+	  printboard;
+      } } 
+      s/(.{$p})(.)/chr ord($2)+1/e                      # free the piece instance
+  } }
+
+  init;                                                 # boring initialization stuff
+  recursion;
+
+
+B<Other advantage of orientations as regexp strings>:
+
+We use the C<cmp> string comparaison operator instead of a custom one
+because orientations are strings.  As a result, we can weed out duplicated
+orientations of a piece with a one liner.  It first sorts the
+orientations, then it compare in the sorted list an orientation with
+the previous one and keep it if it is different.
+
+push @pieces, [ grep{ $prevor= $a cmp ($b=$_);  $a=$_;  $prevor } sort @orientations ]; 
+
+A calculated orientation must be normalized. Non trivial with other
+representations, this operation is a simple removal of initial dots of
+the orientation regexp: C<s/\.*//>
+	
+
+=head1 printing
+
+I draw lines between squares that have different values, using graphic
+characters. C<$graphstr> is the string containing the graphic
+characters. C<sqval> is the function used to get the value of a
+square.  "\0" stands for an unocuppied square and "\0200" for a
+forbidden square. By doing a bitwise and with C<chr 0177>, I avoid
+drawing lines between unocuppied and forbidden squares.
+
+  sub sqval     {  substr( $board, $_[0], 1) & chr 0177 }; 
+  sub here      {  sqval $u     }
+  sub left      {  sqval $u-1   }
+  sub up        {  sqval $u-256 }
+  sub leftup    {  sqval $u-257 }
+  $h= substr(  ($graphstr, (left ne leftup)*2 + (up ne leftup)*1 + (here ne up)*8 + (here ne left)*4) , 1) 
+
+
+=head2 Pushing the limits
+
+The letter of the contest is: "The limit is 1024 of bytes of Perl
+code, not including whitespaces". The general idea certainly was to
+encourage good program presentation. Indeed, whitespace are
+used for short lines (newlines) and indenting (spaces and tab). There
+is a flaw here, because one can encode an arbitrary long program using
+whitesepaces and decode it as a regular Perl program using a
+one-liner.
+
+I was not able to fit my genuine program in 1024 characters so I had
+to slightly mangle it:
+
+  s| q| sub|g; 
+  s| $|;|mg;  
+  ...
+  eval $_
+
+I admit that my  program is not particularly efficient, especially in perl 5.004
+that does not provide compiled regexps. I plead innocent, my Honor:
+that contest is about devious creativity, not mere and dull
+efficiency!
+
+We use strings in place of geometric representation, so "litteral
+thinking" is more appropriate here to qualify our approach than the trite
+expression: lateral thinking. I don't mean it litterally, though.
+
+You might say that by choosing strings for representation, I imposed
+on myself stringent artificial limitations. Well, if you want more
+than 254 polyominos instances. it is time to check out utf8, the last
+creation of Larry. Unicode to solve arbitrary complicated square
+polyominos problems, what a concept!
+
+
+=head2 anagrams as degenerated polyominoes
+
+If polyominoes represents letters, we could define a board with
+slot for letters. That would be pretty weird because we will have
+flipped letters.
+
+=head2 An horror story becomes an inspiring event
+
+Like the presentation of a theorem, my little narrative was a fiction:
+it did not honestly retrace the history of my tiny program
+construction.  It is easy to be fooled by a rationalized
+reconstruction that fits history in a grand design, justifies old
+decisions in the light of new experience, and sweeps messy things
+under the carpet. Such a revisionism is bad because instructive lessons are
+kept from the reader that is not saved from the school of hard knocks.
+
+So, to the implicitly teleonomist "Design and evolution"
+pseudorational propaganda, I prefer the french biologist J. Monod
+expression "Hasard et nE<eacute>cessitE<eacute>", here to describe
+programmatic happenstances and constraints.
+
+The last "litteral thinking" twist was suggested by an accident.  I
+was trying to do numbers bit flipping to implement polyomino
+flipping. The following pentamino flipping test was returning
+stubbornly a sequence of zeroes:
+
+DB<1> $,=" "; print  map {~$_ & 65535 } qw(0 1 2 3 5)
+0 0 0 0 0
+
+"Weird!  How comes that such big a problem had escaped perl regression
+tests?".  Eventually, I thought I should check the implicit
+conversions I relied on: strings to number and back to string. Indeed,
+I remembered bad C++ memories: B<implicit conversions will undig what
+you don't know to hurt you: some unknown conversion and/or method will
+be used in place of the expected one(s)>
+
+A quick test confirmed my suspiscions. 
+
+  DB<2> p ~0 & 65535
+  65535
+  DB<3> p ~"0" & 65535
+  0
+
+and indeed:
+
+  DB<4> print  map {~$_ & 65535 } (0, 1, 2, 3, 5)
+  65535 65534 65533 65532 65530
+
+C<qw(0 1 2 3 4 5)> is quite different from C<(0, 1, 2, 3, 5)>. The
+first returns a list of strings, the second a list of nunbers.
+
+What I forgot was that bitwise operators had a meaning for strings.
+Sure enough, they were acting differently upon strings and numbers.
+So, C<~"0"> was different from C<~0>. Then, in C<~"0" & 65535>, the
+string returned by C<~"0"> is converted to a number: when a bitwise
+operator is applied to a string and a number, the string is first
+converted to a number. For lack of a better choice, any string that
+cannot be sensibly converted to a integer or a float is converted to
+the number C<0>.  So we got C<0 & 65355>; that is C<0>. I had a
+conversion from string to number but not where I expected it!
+
+BTW: What is the appropriate way to track these conversions if any;
+apart running Perl in a debugger?
+
+Perl implicit number conversions between their numeric and string
+representations hides from us uninteresting chores so we can
+concentrate on more challenging tasks. These conversions are usually
+straightforward so they are a blessing... except in our marginal case.
+
+Implicit conversions and/or ambiguous expressions are always a
+delicate matter. Another place where it happens in Perl is with lists
+and scalar context; this is known to trick people.  Hopefully, apart
+these pathological cases, Perl is clean in these matters. Perl allows
+overloading but hopefully does not permit user defined converters that
+could be implicitely called. So, unlike in C++, the meaning of a
+Perl program cannot be changed by the introduction of new method in
+the library code used.
+
+Anyway, after almost gotten hang on these strings, I decided to use
+them to pull a trick: to represent board and orientations as strings
+and to use bitwise operators on them. Regexp eventually became the
+next "natural" step. You know the rest of the story.
+
+=head2 Other ideas about coding pentaminoes in Perl
+
+At any given time, when trying to fit a orientation, we consider a 5
+by 5 area whose first square is free. We could pregenerate a hash that
+would associate a string representing one given configuration of that area
+to an array of orientations that could be fitted. This will spare us
+to try blindly every orientations at each level of recursion.
+
+The problem will be to generate the list of meaningful configurations
+without enumerating the whole 2**(5*5-1).  Will the gain in speed
+would offset the initial time needed for the hash generation?
+
+How about a constest "The fastest Perl polyomino solver in 2048
+characters?" The winner would be the one that would enumerate all
+the solution of a given problem in a minimum of time!
+
+
+=head2 A nice idiotism
+
+...used in the seed generator code. It implements the pieces shuffling
+before generating the seed string. The sort algorithm must be robust
+enough to handle a comparaison function that doesn't implement a
+relation of order. This must be so, because a random function hardly
+defines a relation of order! A few iterations of that special kind of
+sort is necessary for good shuffling.
+
+  # *** WHOA THERE!!! ***  in place sort to shuffle!!!!
+  sub shuffle { map { @_=sort { int (3*rand)-1 } @_ } 0..5 }
+
+Note: Perl 5.005 implements such a robust sort. 
+
+=head2 Useless more and less
+
+B<More> and B<less> are UNIX pagers. A pager permits to vizualize
+screen by screen programs that are longer than the screen height. On
+my Linux box, B<Less> translates control characters to a readable
+equivalence.  This hides the fact that my program starts by defining a
+string composed of the "control" characters that are later used to
+draw boxes on a ANSI terminal.  My program really draw boxes, so these
+characters are a useful clue to its behavior.  I have removed B<more>
+on my old Linux sand box and made B<more> a link to B<less> because
+B<less> was more powerful than B<more>. Now, sentences like "how could
+have I made B<more> more or less B<less>?"  should make sense.
+
+
+=head1 More... about polyominoes
+
+A square polyomino is n units connected squares of that grid. You can
+translate, rotate and flip any sq. polyominoes.
+
+There are many variations of polyominoes, non square ones, n-dimensional ones
+with n>3.
+
+The most popular polyominoes are the pentaminoes. There is twelve of
+them.  That makes sixty squares. So you can fill any of the rectangles
+3x20, 4x15, 5x12, 6x10. The triplication problem is an interesting one as
+well: pick up a pentamino, and fill its triplicated figure with nine
+given pentominoes. This is generally possible.  An interesting
+variation is to give a thickness of one unit to the pentaminoes. The
+obvious problem is to fit the pentominoes in a 3x4x5
+parallepipede. Sure enough, when I say obvious, I speak of the
+statement of the problem not of its solutions. But given one solution,
+it is sometines quite easy to derive others. Another interesting
+problem is the filling by dominoes of a board with 2 diagonally
+opposite angles prefilled. 
+
+But I got carried away, the non squares polyominoes and non 2
+dimensional problems beyond of the scope of the present program. This
+is so only because of the constraints of the contest. And for the
+domino problem, my program will give you the answer if you can wait
+long enough. I doubt you can :)
+
+
+If you are not afraid to be severely hooked to polyominoes, I give you
+URLs obtained thru a quick search:
+http://math.rice.edu/~lanius/Lessons/Polys/poly7.html : Polyominoes On the Web
+http://lonestar.texas.net/~jenicek/pentomin/pentomin.html: Pentaminoes
+
+I have myself a spotty but long story with polyominoes:
+
+In high school, in Grenoble, I had a math teacher who said a few words
+about polyominos and wrote about it in a local pedagogic publication.
+The ways of the web are mysterious, so if this text ever reach her: I
+am happy to say that I appreciated very much her teaching. A few month
+later on a linguistic trip in England, I read a book devoted to
+polyominos. If my memory serves me well, the title was, aptly enough:
+polyominos.
+
+One or two years later, I got a few hours of access to some
+time-shared harware and learnt a french version of BASIC (BASIC quoi?
+Nope, BASICois!) but failed on so short a time to get a working
+pentaminoes problem solver program.  But I definitively got infected
+by the aching... I mean the hacking virus.
+
+In 86 or so, I bought an ATARI 1040 and wrote a (long lost) square
+polyominoes puzzle solver in C with a windowed interface.  Historical
+note about the 1040: Atari was confident enough to have its TOS (T for
+Tramiel) operating system, including the window system in ROM! Yes,
+you read right: in Read Only Memory; this would be downright
+impossible with software current low quality standards: pee code, ship
+it, than propose expansive upgrades to fix it.  The ATARI beast had 1
+MO of RAM and a 10 MO hard disk. Apart the loosy diskette reader, that
+was a very nice computer. I sold it because in 87, I got access to
+more powerful 680x0 based beasts hooked to the Internet. That was
+before the suns have been powered by sparks (instead of nuclear
+fusion, contrary to popular belief ;-)
+
+
+
+
+#! /usr/bin/perl
+
+=head1 NAME
+
+seed - seeder program
+
+=head1 SYNOPSIS
+
+B<seed> S<[ B<-u> ]> S<[ B<-r> ]> s<[ B<-t>I<n> ]> S<[ I<seederfile> ]> S<[ I<boardile> ]> S<[ I<w>B<x>I<h> ]> s<[ I<instancelist> ]>
+
+=head1 DESCRIPTION
+
+The seeder program is the necessary complement of the solver
+program. It indicates to the solver program what puzzle is to be
+solved, the ouput of the seeder being piped to the input of the
+solver. Not all combinations of switches and parameters are meaningful.
+
+The I<seeder file> contains a representation of square polyominoes
+that must be fitted in the board.  If none, the 12 pentaminoes encoded
+in the seeder program are used.
+
+The I<board file> contains a representation of the board. If none is
+indicated, the board is asserted to be rectanguler.
+
+The seederfile and the boardfile parameters are unsupperted at the time
+of this writing.
+
+I<w>B<x>I<h> gives the widht and height of the board to
+be filled. Default is 6x10.
+
+The I<instance list> is used to pick up a subset of
+the available square polyomonows. Each element of the list is
+of the form  I<n/i>  meaning "pick n instances of the piece i".
+
+B<-r> picks the piece at random, some are omitted, some may picked many
+times. All pieces must be of same size in this case.
+
+B<-t>I<n> indicates that the problem is a triplication and I<n> is the
+indice of the peice to be triplicated. If no instance list, picks nine
+(not necesarily !=) pieces,
+
+B<-u> enforce unicity of picked pieces: one instance at most is picked
+up; impliees B<-s> if B<-t> is not set.
+
+  seed 3x20  2/0 2/2 2/3 6/4
+
+=cut
+
+
+
+srand;
+
+my $w     =  6;      # default width
+my $h     = 10;      # default height
+my $tripl = -1;      # -1: no triplication; !=1: indice of piece to triplicate.
+my $random;
+my $unique;
+
+grep {  
+  s|^-r|$random=1|;
+  s/^(\d+)x(\d+)$/$w=$1;$h=$2;/e;
+  s|^(\d+)/(\d+)$|$i{$2}=$1|e;
+  s|^-t(\d*)$|$tripl = length $1 ? $1 : int 9 * rand;|e;
+  s|^-u| $unique =1|e;
+ } @ARGV;
+
+
+if ($w>$h) { $_=$h; $h=$w; $w=$_ }
+$random = 1 if $unique && $tripl == -1;
+
+
+
+local $/='';   # polyominos are separated by an empty line
+my @n;        # nybbles
+my @l;        # lines of a polyomino
+my @s;        # serialization string
+my $i=-1;     # instance number
+my $j=-1;     # instance number (in the generated seed)
+@pieces = <DATA>;
+if ($random || ($tripl !=-1  && ! defined %i)) {
+  for($trip!=-1 ? 0..8 : @pieces) { 
+    while(1) { 
+      $r = int @pieces * rand;
+      if ($unique) { 
+	if(! $i{$r} ){ $i{$r}++ ; last }
+      } else {
+	 $i{$r}++; last
+      }
+    }
+  } 
+}
+for(@pieces) {
+  $i++;
+  my $l;         #  folded offset
+  $i{$i} = $1 if m/\s*(\d+)\s*/s && !defined %i;  # instances number can be prepended to the piece
+  $i{$i} =  $i{$i} |= 256  if $i == $tripl;  # triplication, possibly include 0 instances of it 
+                                             # 256 is a marker to recognize after shuffling
+  @l = split /\n/;
+  my @o;      # folded coords of a polyomino
+  die "max height of a polyomino is 3" if @l > 3;
+  for(@l) { 
+     s/\s+$//;
+     die "max width of a polyomino is 5" if length($_)>5;
+     my $j = 0;
+     for( split //, $_) { push @o, $l+$j if $_ ne ' '; $j++ }
+    if (($i{$i} & ~256 )> 15) {  warn "number of instances of piece $i reduced to 15";  $i{$i} =15; }
+     $l += 5;
+  }
+  push @n,  [@o, 15, defined %i ? $i{$i} : 1 ] if defined $i{$i} || ! defined %i;
+} 
+
+map { @n=sort { int (3*rand)-1 } @n } 0..5;  # shuffling: make seeds look != even if only board sz changed.
+if ($tripl != -1 ) { 
+    $w=0 ;  my $j;    # calc indice of the triplicated piece after shuffling.
+    map { 
+     if ( $$_[-1] & 256 ) { 
+         $$_[-1] &= ~256 ; $h=$j 
+   } else { $j++ } } @n;
+}
+@n= map { @$_ } @n;
+$s=pack "CC", $w, $h;
+while(@n) {  my ($i, $j) = splice @n, 0, 2;  $s .= pack 'C', ($i << 4) + $j  } 
+print $s;
+
+
+__END__
+xxxxx
+
+ x
+xxx
+ x
+
+xx
+x
+xx
+
+ XX
+XXX
+
+  x
+xxx
+x
+
+  x
+xxxx
+
+xx
+ xx
+  x
+
+xxx
+ x
+ x
+
+ x
+xxx
+x
+
+  xx
+xxx
+
+xxxx
+   x
+
+  x
+  x
+xxx
+
