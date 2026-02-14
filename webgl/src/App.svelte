@@ -16,13 +16,21 @@
 
   type Hover = { row: number; col: number } | null;
 
+  const isTouchDevice =
+    typeof window !== 'undefined' &&
+    ('ontouchstart' in window ||
+      window.matchMedia?.('(pointer: coarse)').matches ||
+      navigator.maxTouchPoints > 0);
+
   let selectedPiece: PieceName | null = 'F';
   let pose: Pose = { rotation: 0, flipped: false };
   let hover: Hover = null;
   let placements: Placement[] = [];
   let prefixCount = 0;
   let solvedSolutions: Placement[][] = [];
-  let status = 'Pick a piece and click the board to place it.';
+  let status = isTouchDevice
+    ? 'Pick a piece and tap the board to place it.'
+    : 'Pick a piece and click the board to place it.';
   let isAnimating = false;
   let animationTimer: ReturnType<typeof setInterval> | null = null;
   let animationStepsUsed = 0;
@@ -418,7 +426,13 @@
           all pieces used
         {/if}
       </span>
-      <span class="pose-readout">keys: piece letter to select, R/Shift+R rotate, X flip, Esc clear ghost</span>
+      <span class="pose-readout">
+        {#if isTouchDevice}
+          tap: select piece, tap board: place/remove
+        {:else}
+          keys: piece letter to select, R/Shift+R rotate, X flip, Esc clear ghost
+        {/if}
+      </span>
       {#if selectedPiece && transformed}
         {@const dims = bounds(transformed)}
         <span
