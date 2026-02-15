@@ -13,6 +13,8 @@ This folder contains Manim scene scripts for pentomino tilings on a `6x10` recta
 - animates piece placement,
 - shows five solved rectangles.
 
+`pentomino_6x10.py` contains the base single-board variant and shared pentomino/solver logic.
+
 ## Run
 From repo root:
 

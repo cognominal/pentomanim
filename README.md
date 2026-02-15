@@ -40,12 +40,15 @@ Output videos are written under:
 Location: `/Users/cog/mine/pentomanim/webgl`
 
 ### What it does
-- Interactive pentomino placement board (`6x10`) rendered with WebGL.
-- Piece picker with rotate/flip controls.
-- Manual solve + automatic solve from current prefix.
-- Animated solve with progressive speed control.
-- Solved-history pane: click a solved rectangle to load it into Solver.
-- Pruning rule for search efficiency: connected empty regions must have a square count divisible by 5.
+- WebGL pentomino board with two tabs:
+  - `Rectangle Solver`
+  - `Triplication Solver`
+- Rectangle sizes: `20x3`, `15x4`, `12x5`, `10x6`.
+- Piece picker, rotate/flip/reset controls, ghost preview, place/remove.
+- Solve and Animate Solve from current prefix, with step counter and speed slider.
+- Scrollable solved-history pane; solved states can be loaded back into the solver.
+- Triplication problems with a generated masked board, 9 selected pieces, and its own solved-history pane.
+- Search pruning: connected empty regions must have a square count divisible by `5`.
 
 ### Install
 
@@ -72,8 +75,15 @@ bun run build
 bun run preview
 ```
 
+### Deploy (Vercel)
+- Framework preset: `Vite`.
+- Root directory: `webgl`.
+- Build command: `bun run build`.
+- Output directory: `dist`.
+
 ## Notes
 - The WebGL app is the interactive rewrite of the Manim logic, with additional UI features.
 - Solver behavior and orientation logic are implemented in:
   - `/Users/cog/mine/pentomanim/webgl/src/lib/pentomino.ts`
   - `/Users/cog/mine/pentomanim/webgl/src/lib/solver.ts`
+  - `/Users/cog/mine/pentomanim/webgl/src/lib/triplication.ts`

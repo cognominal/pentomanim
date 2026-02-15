@@ -5,6 +5,7 @@
 
   export let placements: Placement[] = [];
   export let ghost: { name: PieceName; cells: [number, number][]; valid: boolean } | null = null;
+  export let maskCells: [number, number][] = [];
   export let interactive = true;
   export let rows = BOARD_ROWS;
   export let cols = BOARD_COLS;
@@ -233,6 +234,9 @@
     gl.clear(gl.COLOR_BUFFER_BIT);
     gl.useProgram(program);
     drawGrid();
+    if (maskCells.length > 0) {
+      drawBatch(maskCells, [0.16, 0.2, 0.35, 0.65]);
+    }
 
     for (const p of placements) {
       drawBatch(p.cells, hexToRgba(PIECE_COLORS[p.name], 0.9));
@@ -309,6 +313,7 @@
   $: {
     placements;
     ghost;
+    maskCells;
     rows;
     cols;
     scheduleDraw();

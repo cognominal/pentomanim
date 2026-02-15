@@ -24,6 +24,26 @@ main {
   grid-template-columns: minmax(0, 1fr) 300px;
 }
 
+main.long-rect-mode {
+  grid-template-columns: 1fr;
+}
+
+.pane-tabs {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 0.45rem;
+  padding: 0.45rem;
+}
+
+.tab-btn {
+  flex: 0 0 auto;
+}
+
+.tab-btn.active {
+  border-color: #8ecae6;
+  box-shadow: inset 0 0 0 1px #8ecae6;
+}
+
 .repo-toggle {
   position: fixed;
   top: 0.75rem;
@@ -140,6 +160,70 @@ header p.error-status {
   display: grid;
   grid-template-rows: auto auto auto 1fr auto;
   gap: 0.5rem;
+}
+
+main.long-rect-mode .solver-pane {
+  grid-column: 1 / -1;
+}
+
+main.long-rect-mode .solver-pane .piece-bank {
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 0.28rem;
+}
+
+main.long-rect-mode .solver-pane .piece-btn {
+  min-height: 52px;
+  padding: 0.18rem;
+}
+
+main.long-rect-mode .solver-pane .toolbar {
+  gap: 0.28rem;
+}
+
+main.long-rect-mode .solver-pane .toolbar button {
+  padding: 0.2rem 0.45rem;
+  font-size: 0.78rem;
+}
+
+main.long-rect-mode .solver-pane .pose-readout {
+  font-size: 0.75rem;
+}
+
+.triplication-pane {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 0.7rem;
+}
+
+.triplication-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 0.8rem;
+}
+
+.triplication-meta {
+  border: 1px solid #2c3757;
+  border-radius: 10px;
+  padding: 0.55rem;
+  background: #0e1428;
+  display: grid;
+  gap: 0.45rem;
+  align-content: start;
+}
+
+.triplication-line {
+  color: #c3cde7;
+  font-size: 0.82rem;
+}
+
+.triplication-pieces {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.piece-btn.mini-only {
+  min-height: 52px;
+  padding: 0.2rem;
+  pointer-events: none;
 }
 
 .piece-bank {
@@ -260,9 +344,9 @@ button:disabled {
 }
 
 .board-wrap {
-  width: 100%;
+  width: min(100%, 840px);
   aspect-ratio: var(--board-cols) / var(--board-rows);
-  justify-self: stretch;
+  justify-self: center;
 }
 
 .slider-row {
@@ -288,6 +372,12 @@ input[type='range'] {
   gap: 0.6rem;
   height: calc(100vh - 1.4rem);
   overflow-y: auto;
+}
+
+main.long-rect-mode .solved-pane {
+  grid-column: 1 / -1;
+  height: auto;
+  max-height: 34vh;
 }
 
 .solved-list {
@@ -342,5 +432,17 @@ input[type='range'] {
 
   main.touch-mode .piece-bank {
     grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+
+  .triplication-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (pointer: coarse), (max-width: 980px) {
+  main.touch-mode .board-wrap {
+    width: min(100%, 92vw);
+    max-width: 92vw;
+    max-height: 48dvh;
   }
 }
