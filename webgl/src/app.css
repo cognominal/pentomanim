@@ -94,6 +94,10 @@ header p {
   font-size: 0.86rem;
 }
 
+header p.error-status {
+  color: #ff6b6b;
+}
+
 .solver-pane {
   display: grid;
   grid-template-rows: auto auto auto 1fr auto;

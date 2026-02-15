@@ -35,6 +35,8 @@
   let isAnimating = false;
   let animationTimer: ReturnType<typeof setInterval> | null = null;
   let animationStepsUsed = 0;
+  let animationTraceLength = 0;
+  let animationStartSliderValue: number | null = null;
   let showRepoLink = false;
   const MIN_INITIAL_SPEED = 0.01;
   const MAX_INITIAL_SPEED = 1000000;
@@ -44,6 +46,7 @@
   $: initialSpeedMultiplier = speedFromSlider(speedSlider);
 
   $: visiblePlacements = placements.slice(0, prefixCount);
+  $: isErrorStatus = status.toLowerCase().includes('no completion');
   $: usedNames = new Set(visiblePlacements.map((p) => p.name));
   $: availablePieces = PIECE_ORDER.filter((name) => !usedNames.has(name));
   $: if (selectedPiece && usedNames.has(selectedPiece)) {
@@ -299,6 +302,16 @@
     return snapshot.filter((p) => p.name !== event.placement.name);
   }
 
+  function longestValidPrefix(source: Placement[]): Placement[] {
+    for (let len = source.length; len >= 0; len -= 1) {
+      const candidate = clonePlacements(source.slice(0, len));
+      if (solveFromPlacements(candidate) !== null) {
+        return candidate;
+      }
+    }
+    return [];
+  }
+
   function stopAnimationTimer(): void {
     if (animationTimer) {
       clearInterval(animationTimer);
@@ -306,12 +319,30 @@
     }
   }
 
+  function stopAnimationAtCurrentStage(): void {
+    stopAnimationTimer();
+    isAnimating = false;
+    if (animationStartSliderValue !== null) {
+      speedSlider = animationStartSliderValue;
+    }
+    status = `Animation paused at step ${animationStepsUsed}/${animationTraceLength}.`;
+    animationStartSliderValue = null;
+  }
+
   function animateSolve(): void {
     if (isAnimating) {
+      stopAnimationAtCurrentStage();
       return;
     }
 
-    const start = clonePlacements(visiblePlacements);
+    const rawStart = clonePlacements(visiblePlacements);
+    const start = longestValidPrefix(rawStart);
+    if (start.length !== rawStart.length) {
+      placements = clonePlacements(start);
+      prefixCount = start.length;
+      status = `Restarted from longest valid prefix (${start.length} pieces).`;
+    }
+
     animationStepsUsed = 0;
     const traced = solveWithTraceFromPlacements(start, 200000);
     let solution: Placement[];
@@ -343,13 +374,14 @@
     isAnimating = true;
     selectedPiece = null;
     hover = null;
+    animationTraceLength = trace.length;
     status = `Animating solve: 0/${trace.length} steps`;
 
     let cursor = 0;
     let working = clonePlacements(start);
     const startedAt = Date.now();
     const baseInitialSpeed = initialSpeedMultiplier;
-    const startSliderValue = speedSlider;
+    animationStartSliderValue = speedSlider;
     let stepBudget = 0;
 
     stopAnimationTimer();
@@ -384,7 +416,10 @@
       if (cursor >= trace.length) {
         stopAnimationTimer();
         isAnimating = false;
-        speedSlider = startSliderValue;
+        if (animationStartSliderValue !== null) {
+          speedSlider = animationStartSliderValue;
+        }
+        animationStartSliderValue = null;
         addSolved(solution);
         clearSolverAfterSolved('Animated solve complete. Added to Solved; Solver cleared.');
       }
@@ -436,7 +471,7 @@
   <section class="pane solver-pane">
     <header>
       <h2>Solver</h2>
-      <p>{status}</p>
+      <p class:error-status={isErrorStatus}>{status}</p>
     </header>
 
     <div class="piece-bank">
@@ -473,7 +508,7 @@
       <button on:click={flipPiece} disabled={!selectedPiece}>Flip ↔</button>
       <button on:click={resetPose} disabled={!selectedPiece}>Reset</button>
       <button class="solve" on:click={solveNow} disabled={isAnimating}>Solve</button>
-      <button class="solve" on:click={animateSolve} disabled={isAnimating}>Animate Solve</button>
+      <button class="solve" on:click={animateSolve}>{isAnimating ? 'Stop Animation' : 'Animate Solve'}</button>
       <span class="pose-readout">steps used: {animationStepsUsed}</span>
       <span class="pose-readout">
         {#if selectedPiece}
