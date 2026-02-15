@@ -88,6 +88,30 @@ header h2 {
   letter-spacing: 0.03em;
 }
 
+.solver-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
+.board-size-select {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: #c6d0eb;
+  font-size: 0.78rem;
+}
+
+.board-size-select select {
+  border: 1px solid #445073;
+  border-radius: 7px;
+  background: #151e3a;
+  color: #eef3ff;
+  padding: 0.18rem 0.35rem;
+  font-size: 0.78rem;
+}
+
 header p {
   margin: 0.28rem 0 0.14rem;
   color: #aeb8d6;
@@ -236,11 +260,9 @@ button:disabled {
 }
 
 .board-wrap {
-  height: min(44vh, 390px);
-  width: auto;
-  max-width: 100%;
-  aspect-ratio: 10 / 6;
-  justify-self: start;
+  width: 100%;
+  aspect-ratio: var(--board-cols) / var(--board-rows);
+  justify-self: stretch;
 }
 
 .slider-row {
@@ -290,7 +312,7 @@ input[type='range'] {
 }
 
 .mini-board {
-  aspect-ratio: 10 / 6;
+  aspect-ratio: var(--board-cols) / var(--board-rows);
   width: 100%;
 }
 

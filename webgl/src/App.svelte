@@ -6,7 +6,6 @@
     PIECE_ORDER,
     PIECES,
     cellsForPose,
-    inBounds,
     placeAtAnchor,
     solutionKey,
   } from './lib/pentomino';
@@ -20,6 +19,7 @@
   import type { TraceEvent } from './lib/solver';
 
   type Hover = { row: number; col: number } | null;
+  type SavedSolution = { placements: Placement[]; rows: number; cols: number };
 
   const isTouchDevice =
     typeof window !== 'undefined' &&
@@ -27,13 +27,15 @@
       window.matchMedia?.('(pointer: coarse)').matches ||
       navigator.maxTouchPoints > 0);
   const repoUrl = 'https://github.com/cognominal/pentomanim';
+  const boardSizeOptions = ['20x3', '15x4', '12x5', '10x6'] as const;
 
   let selectedPiece: PieceName | null = 'F';
+  let selectedBoardSize: (typeof boardSizeOptions)[number] = '10x6';
   let pose: Pose = { rotation: 0, flipped: false };
   let hover: Hover = null;
   let placements: Placement[] = [];
   let prefixCount = 0;
-  let solvedSolutions: Placement[][] = [];
+  let solvedSolutions: SavedSolution[] = [];
   let status = isTouchDevice
     ? 'Pick a piece and tap the board to place it.'
     : 'Pick a piece and click the board to place it.';
@@ -52,6 +54,7 @@
   $: initialSpeedMultiplier = speedFromSlider(speedSlider);
 
   $: visiblePlacements = placements.slice(0, prefixCount);
+  $: [boardCols, boardRows] = selectedBoardSize.split('x').map(Number) as [number, number];
   $: isErrorStatus = status.toLowerCase().includes('no completion');
   $: showResetPrefixAction = currentPrefixSolutions === 0 && !isAnimating && visiblePlacements.length > 0;
   $: usedNames = new Set(visiblePlacements.map((p) => p.name));
@@ -71,8 +74,20 @@
 
   $: ghostValid =
     ghostPlacement !== null &&
-    inBounds(ghostPlacement.cells) &&
-    canApplyPlacement(visiblePlacements, ghostPlacement as Placement);
+    inBoundsForBoard(ghostPlacement.cells) &&
+    canApplyPlacement(visiblePlacements, ghostPlacement as Placement, boardRows, boardCols);
+
+  function onBoardSizeChange(event: Event): void {
+    const target = event.currentTarget as HTMLSelectElement;
+    selectedBoardSize = target.value as (typeof boardSizeOptions)[number];
+    placements = [];
+    prefixCount = 0;
+    hover = null;
+    selectedPiece = 'F';
+    solvedSolutions = [];
+    currentPrefixSolutions = null;
+    status = `Board size set to ${selectedBoardSize}. Board cleared.`;
+  }
 
   function rotateRight(): void {
     pose = { ...pose, rotation: ((pose.rotation + 1) % 4) as Pose['rotation'] };
@@ -108,10 +123,14 @@
     if (solution.length !== PIECE_ORDER.length) {
       return;
     }
-    const key = solutionKey(solution);
-    if (!solvedSolutions.some((s) => solutionKey(s) === key)) {
-      solvedSolutions = [clonePlacements(solution), ...solvedSolutions];
+    const key = `${boardRows}x${boardCols}:${solutionKey(solution)}`;
+    if (!solvedSolutions.some((s) => `${s.rows}x${s.cols}:${solutionKey(s.placements)}` === key)) {
+      solvedSolutions = [{ placements: clonePlacements(solution), rows: boardRows, cols: boardCols }, ...solvedSolutions];
     }
+  }
+
+  function inBoundsForBoard(cells: [number, number][]): boolean {
+    return cells.every(([r, c]) => r >= 0 && r < boardRows && c >= 0 && c < boardCols);
   }
 
   function clonePlacements(data: Placement[]): Placement[] {
@@ -135,7 +154,7 @@
     if (isAnimating) {
       return;
     }
-    if (!inBounds(candidate.cells) || !canApplyPlacement(visiblePlacements, candidate)) {
+    if (!inBoundsForBoard(candidate.cells) || !canApplyPlacement(visiblePlacements, candidate, boardRows, boardCols)) {
       return;
     }
     truncateToPrefix();
@@ -148,7 +167,7 @@
       return;
     }
 
-    const solutionStats = countSolutionsFromPlacements(clonePlacements(placements), 200);
+    const solutionStats = countSolutionsFromPlacements(clonePlacements(placements), 200, boardRows, boardCols);
     currentPrefixSolutions = solutionStats.count;
     const noun = solutionStats.count === 1 ? 'solution' : 'solutions';
     status = `${candidate.name} placed. ${solutionStats.count} ${noun} for this prefix${solutionStats.complete ? '' : ' and counting'}.`;
@@ -204,7 +223,7 @@
     }
     animationStepsUsed = 0;
     const start = clonePlacements(visiblePlacements);
-    const solved = solveFromPlacements(start);
+    const solved = solveFromPlacements(start, boardRows, boardCols);
     if (!solved) {
       currentPrefixSolutions = 0;
       status = 'No completion found from the current prefix.';
@@ -221,8 +240,9 @@
       return;
     }
     const chosen = solvedSolutions[index];
-    placements = clonePlacements(chosen);
-    prefixCount = placements.length;
+    selectedBoardSize = `${chosen.cols}x${chosen.rows}` as (typeof boardSizeOptions)[number];
+    placements = clonePlacements(chosen.placements);
+    prefixCount = chosen.placements.length;
     selectedPiece = null;
     currentPrefixSolutions = null;
     status = `Loaded solved rectangle #${index + 1} into Solver.`;
@@ -323,7 +343,7 @@
   function longestValidPrefix(source: Placement[]): Placement[] {
     for (let len = source.length; len >= 0; len -= 1) {
       const candidate = clonePlacements(source.slice(0, len));
-      if (solveFromPlacements(candidate) !== null) {
+      if (solveFromPlacements(candidate, boardRows, boardCols) !== null) {
         return candidate;
       }
     }
@@ -370,12 +390,12 @@
     }
 
     animationStepsUsed = 0;
-    const traced = solveWithTraceFromPlacements(start, 200000);
+    const traced = solveWithTraceFromPlacements(start, 200000, boardRows, boardCols);
     let solution: Placement[];
     let trace: TraceEvent[];
 
     if (!traced) {
-      const solved = solveFromPlacements(start);
+      const solved = solveFromPlacements(start, boardRows, boardCols);
       if (!solved) {
         status = 'No completion found from the current prefix.';
         return;
@@ -496,7 +516,17 @@
 
   <section class="pane solver-pane">
     <header>
-      <h2>Solver</h2>
+      <div class="solver-title-row">
+        <h2>Rectangle Solver</h2>
+        <label class="board-size-select">
+          <span>Size</span>
+          <select value={selectedBoardSize} on:change={onBoardSizeChange}>
+            {#each boardSizeOptions as size}
+              <option value={size}>{size}</option>
+            {/each}
+          </select>
+        </label>
+      </div>
       <div class="status-row">
         <p class:error-status={isErrorStatus}>{status}</p>
         {#if showResetPrefixAction}
@@ -571,8 +601,10 @@
       {/if}
     </div>
 
-    <div class="board-wrap">
+    <div class="board-wrap" style={`--board-cols:${boardCols};--board-rows:${boardRows}`}>
       <BoardWebGL
+        rows={boardRows}
+        cols={boardCols}
         placements={visiblePlacements}
         ghost={ghostPlacement && selectedPiece ? { name: selectedPiece, cells: ghostPlacement.cells, valid: ghostValid } : null}
         interactive={!isAnimating}
@@ -624,8 +656,8 @@
         {#each solvedSolutions as solution, idx}
           <button class="solved-card" on:click={() => importSolved(idx)} disabled={isAnimating}>
             <div class="solved-index">Rectangle {idx + 1}</div>
-            <div class="mini-board">
-              <BoardWebGL placements={solution} interactive={false} />
+            <div class="mini-board" style={`--board-cols:${solution.cols};--board-rows:${solution.rows}`}>
+              <BoardWebGL placements={solution.placements} rows={solution.rows} cols={solution.cols} interactive={false} />
             </div>
           </button>
         {/each}

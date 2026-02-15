@@ -1,10 +1,10 @@
 import { BOARD_COLS, BOARD_ROWS, PIECES, PIECE_ORDER, normalize } from './pentomino';
-function buildBoard() {
-    return Array.from({ length: BOARD_ROWS }, () => Array.from({ length: BOARD_COLS }, () => null));
+function buildBoard(ctx) {
+    return Array.from({ length: ctx.rows }, () => Array.from({ length: ctx.cols }, () => null));
 }
-function canPlace(board, cells) {
+function canPlace(ctx, board, cells) {
     for (const [r, c] of cells) {
-        if (r < 0 || r >= BOARD_ROWS || c < 0 || c >= BOARD_COLS) {
+        if (r < 0 || r >= ctx.rows || c < 0 || c >= ctx.cols) {
             return false;
         }
         if (board[r][c] !== null) {
@@ -18,12 +18,11 @@ function write(board, cells, value) {
         board[r][c] = value;
     }
 }
-function firstEmpty(board) {
+function firstEmpty(ctx, board) {
     // Explore anchors along the shortest board dimension first.
-    // For 6x10 this means scanning column-major to reduce fragmented voids earlier.
-    if (BOARD_ROWS <= BOARD_COLS) {
-        for (let c = 0; c < BOARD_COLS; c += 1) {
-            for (let r = 0; r < BOARD_ROWS; r += 1) {
+    if (ctx.rows <= ctx.cols) {
+        for (let c = 0; c < ctx.cols; c += 1) {
+            for (let r = 0; r < ctx.rows; r += 1) {
                 if (board[r][c] === null) {
                     return [r, c];
                 }
@@ -31,8 +30,8 @@ function firstEmpty(board) {
         }
     }
     else {
-        for (let r = 0; r < BOARD_ROWS; r += 1) {
-            for (let c = 0; c < BOARD_COLS; c += 1) {
+        for (let r = 0; r < ctx.rows; r += 1) {
+            for (let c = 0; c < ctx.cols; c += 1) {
                 if (board[r][c] === null) {
                     return [r, c];
                 }
@@ -41,16 +40,16 @@ function firstEmpty(board) {
     }
     return null;
 }
-function hasOnlyFiveMultipleEmptyRegions(board) {
-    const visited = Array.from({ length: BOARD_ROWS }, () => Array.from({ length: BOARD_COLS }, () => false));
+function hasOnlyFiveMultipleEmptyRegions(ctx, board) {
+    const visited = Array.from({ length: ctx.rows }, () => Array.from({ length: ctx.cols }, () => false));
     const deltas = [
         [-1, 0],
         [1, 0],
         [0, -1],
         [0, 1],
     ];
-    for (let r = 0; r < BOARD_ROWS; r += 1) {
-        for (let c = 0; c < BOARD_COLS; c += 1) {
+    for (let r = 0; r < ctx.rows; r += 1) {
+        for (let c = 0; c < ctx.cols; c += 1) {
             if (board[r][c] !== null || visited[r][c]) {
                 continue;
             }
@@ -63,7 +62,7 @@ function hasOnlyFiveMultipleEmptyRegions(board) {
                 for (const [dr, dc] of deltas) {
                     const nr = cr + dr;
                     const nc = cc + dc;
-                    if (nr < 0 || nr >= BOARD_ROWS || nc < 0 || nc >= BOARD_COLS) {
+                    if (nr < 0 || nr >= ctx.rows || nc < 0 || nc >= ctx.cols) {
                         continue;
                     }
                     if (visited[nr][nc] || board[nr][nc] !== null) {
@@ -112,8 +111,8 @@ const ORIENTATIONS = PIECE_ORDER.reduce((acc, name) => {
     acc[name] = uniqueOrientations(PIECES[name]);
     return acc;
 }, {});
-function search(board, used) {
-    const empty = firstEmpty(board);
+function search(ctx, board, used) {
+    const empty = firstEmpty(ctx, board);
     if (empty === null) {
         return [];
     }
@@ -127,16 +126,16 @@ function search(board, used) {
                 const dr = anchorR - cellR;
                 const dc = anchorC - cellC;
                 const shifted = orient.map(([r, c]) => [r + dr, c + dc]);
-                if (!canPlace(board, shifted)) {
+                if (!canPlace(ctx, board, shifted)) {
                     continue;
                 }
                 write(board, shifted, name);
-                if (!hasOnlyFiveMultipleEmptyRegions(board)) {
+                if (!hasOnlyFiveMultipleEmptyRegions(ctx, board)) {
                     write(board, shifted, null);
                     continue;
                 }
                 used.add(name);
-                const rest = search(board, used);
+                const rest = search(ctx, board, used);
                 if (rest !== null) {
                     return [{ name, cells: shifted }, ...rest];
                 }
@@ -147,12 +146,12 @@ function search(board, used) {
     }
     return null;
 }
-function countSearch(board, used, currentCount, maxCount, limitHit) {
+function countSearch(ctx, board, used, currentCount, maxCount, limitHit) {
     if (currentCount >= maxCount) {
         limitHit.value = true;
         return currentCount;
     }
-    const empty = firstEmpty(board);
+    const empty = firstEmpty(ctx, board);
     if (empty === null) {
         return currentCount + 1;
     }
@@ -167,16 +166,16 @@ function countSearch(board, used, currentCount, maxCount, limitHit) {
                 const dr = anchorR - cellR;
                 const dc = anchorC - cellC;
                 const shifted = orient.map(([r, c]) => [r + dr, c + dc]);
-                if (!canPlace(board, shifted)) {
+                if (!canPlace(ctx, board, shifted)) {
                     continue;
                 }
                 write(board, shifted, name);
-                if (!hasOnlyFiveMultipleEmptyRegions(board)) {
+                if (!hasOnlyFiveMultipleEmptyRegions(ctx, board)) {
                     write(board, shifted, null);
                     continue;
                 }
                 used.add(name);
-                count = countSearch(board, used, count, maxCount, limitHit);
+                count = countSearch(ctx, board, used, count, maxCount, limitHit);
                 used.delete(name);
                 write(board, shifted, null);
                 if (limitHit.value) {
@@ -187,8 +186,8 @@ function countSearch(board, used, currentCount, maxCount, limitHit) {
     }
     return count;
 }
-function searchWithTrace(board, used, trace, maxTraceEvents) {
-    const empty = firstEmpty(board);
+function searchWithTrace(ctx, board, used, trace, maxTraceEvents) {
+    const empty = firstEmpty(ctx, board);
     if (empty === null) {
         return [];
     }
@@ -202,12 +201,12 @@ function searchWithTrace(board, used, trace, maxTraceEvents) {
                 const dr = anchorR - cellR;
                 const dc = anchorC - cellC;
                 const shifted = orient.map(([r, c]) => [r + dr, c + dc]);
-                if (!canPlace(board, shifted)) {
+                if (!canPlace(ctx, board, shifted)) {
                     continue;
                 }
                 const placement = { name, cells: shifted };
                 write(board, shifted, name);
-                if (!hasOnlyFiveMultipleEmptyRegions(board)) {
+                if (!hasOnlyFiveMultipleEmptyRegions(ctx, board)) {
                     write(board, shifted, null);
                     continue;
                 }
@@ -219,7 +218,7 @@ function searchWithTrace(board, used, trace, maxTraceEvents) {
                     trace.pop();
                     return null;
                 }
-                const rest = searchWithTrace(board, used, trace, maxTraceEvents);
+                const rest = searchWithTrace(ctx, board, used, trace, maxTraceEvents);
                 if (rest !== null) {
                     return [placement, ...rest];
                 }
@@ -235,36 +234,38 @@ function searchWithTrace(board, used, trace, maxTraceEvents) {
     }
     return null;
 }
-export function solveFromPlacements(fixedPlacements) {
-    const board = buildBoard();
+export function solveFromPlacements(fixedPlacements, rows = BOARD_ROWS, cols = BOARD_COLS) {
+    const ctx = { rows, cols };
+    const board = buildBoard(ctx);
     const used = new Set();
     for (const p of fixedPlacements) {
         if (used.has(p.name)) {
             return null;
         }
-        if (!canPlace(board, p.cells)) {
+        if (!canPlace(ctx, board, p.cells)) {
             return null;
         }
         write(board, p.cells, p.name);
         used.add(p.name);
     }
-    if (!hasOnlyFiveMultipleEmptyRegions(board)) {
+    if (!hasOnlyFiveMultipleEmptyRegions(ctx, board)) {
         return null;
     }
-    const remainder = search(board, used);
+    const remainder = search(ctx, board, used);
     if (remainder === null) {
         return null;
     }
     return [...fixedPlacements, ...remainder];
 }
-export function canApplyPlacement(placements, candidate) {
-    const board = buildBoard();
+export function canApplyPlacement(placements, candidate, rows = BOARD_ROWS, cols = BOARD_COLS) {
+    const ctx = { rows, cols };
+    const board = buildBoard(ctx);
     const seen = new Set();
     for (const p of placements) {
         if (seen.has(p.name)) {
             return false;
         }
-        if (!canPlace(board, p.cells)) {
+        if (!canPlace(ctx, board, p.cells)) {
             return false;
         }
         write(board, p.cells, p.name);
@@ -273,30 +274,31 @@ export function canApplyPlacement(placements, candidate) {
     if (seen.has(candidate.name)) {
         return false;
     }
-    if (!canPlace(board, candidate.cells)) {
+    if (!canPlace(ctx, board, candidate.cells)) {
         return false;
     }
     write(board, candidate.cells, candidate.name);
-    return hasOnlyFiveMultipleEmptyRegions(board);
+    return hasOnlyFiveMultipleEmptyRegions(ctx, board);
 }
-export function solveWithTraceFromPlacements(fixedPlacements, maxTraceEvents = 3000) {
-    const board = buildBoard();
+export function solveWithTraceFromPlacements(fixedPlacements, maxTraceEvents = 3000, rows = BOARD_ROWS, cols = BOARD_COLS) {
+    const ctx = { rows, cols };
+    const board = buildBoard(ctx);
     const used = new Set();
     for (const p of fixedPlacements) {
         if (used.has(p.name)) {
             return null;
         }
-        if (!canPlace(board, p.cells)) {
+        if (!canPlace(ctx, board, p.cells)) {
             return null;
         }
         write(board, p.cells, p.name);
         used.add(p.name);
     }
-    if (!hasOnlyFiveMultipleEmptyRegions(board)) {
+    if (!hasOnlyFiveMultipleEmptyRegions(ctx, board)) {
         return null;
     }
     const trace = [];
-    const remainder = searchWithTrace(board, used, trace, maxTraceEvents);
+    const remainder = searchWithTrace(ctx, board, used, trace, maxTraceEvents);
     if (remainder === null) {
         return null;
     }
@@ -305,24 +307,25 @@ export function solveWithTraceFromPlacements(fixedPlacements, maxTraceEvents = 3
         trace,
     };
 }
-export function countSolutionsFromPlacements(fixedPlacements, maxCount = 200) {
-    const board = buildBoard();
+export function countSolutionsFromPlacements(fixedPlacements, maxCount = 200, rows = BOARD_ROWS, cols = BOARD_COLS) {
+    const ctx = { rows, cols };
+    const board = buildBoard(ctx);
     const used = new Set();
     for (const p of fixedPlacements) {
         if (used.has(p.name)) {
             return { count: 0, complete: true };
         }
-        if (!canPlace(board, p.cells)) {
+        if (!canPlace(ctx, board, p.cells)) {
             return { count: 0, complete: true };
         }
         write(board, p.cells, p.name);
         used.add(p.name);
     }
-    if (!hasOnlyFiveMultipleEmptyRegions(board)) {
+    if (!hasOnlyFiveMultipleEmptyRegions(ctx, board)) {
         return { count: 0, complete: true };
     }
     const limitHit = { value: false };
-    const count = countSearch(board, used, 0, Math.max(1, maxCount), limitHit);
+    const count = countSearch(ctx, board, used, 0, Math.max(1, maxCount), limitHit);
     return {
         count,
         complete: !limitHit.value,
