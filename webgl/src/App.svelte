@@ -35,12 +35,13 @@
   let isAnimating = false;
   let animationTimer: ReturnType<typeof setInterval> | null = null;
   let animationStepsUsed = 0;
-  let speedSlider = 0;
   let showRepoLink = false;
   const MIN_INITIAL_SPEED = 0.01;
   const MAX_INITIAL_SPEED = 1000000;
   const SPEED_EXP_RANGE = Math.log2(MAX_INITIAL_SPEED / MIN_INITIAL_SPEED);
-  $: initialSpeedMultiplier = MIN_INITIAL_SPEED * 2 ** ((speedSlider / 100) * SPEED_EXP_RANGE);
+  const DEFAULT_INITIAL_SPEED = 1;
+  let speedSlider = (100 * Math.log2(DEFAULT_INITIAL_SPEED / MIN_INITIAL_SPEED)) / SPEED_EXP_RANGE;
+  $: initialSpeedMultiplier = speedFromSlider(speedSlider);
 
   $: visiblePlacements = placements.slice(0, prefixCount);
   $: usedNames = new Set(visiblePlacements.map((p) => p.name));
@@ -282,6 +283,15 @@
     speedSlider = Number(target.value);
   }
 
+  function speedFromSlider(value: number): number {
+    return MIN_INITIAL_SPEED * 2 ** ((value / 100) * SPEED_EXP_RANGE);
+  }
+
+  function sliderFromSpeed(speed: number): number {
+    const clamped = Math.max(MIN_INITIAL_SPEED, Math.min(speed, MAX_INITIAL_SPEED));
+    return (100 * Math.log2(clamped / MIN_INITIAL_SPEED)) / SPEED_EXP_RANGE;
+  }
+
   function applyTraceEvent(snapshot: Placement[], event: TraceEvent): Placement[] {
     if (event.type === 'place') {
       return [...snapshot, clonePlacements([event.placement])[0]];
@@ -338,12 +348,15 @@
     let cursor = 0;
     let working = clonePlacements(start);
     const startedAt = Date.now();
+    const baseInitialSpeed = initialSpeedMultiplier;
+    const startSliderValue = speedSlider;
     let stepBudget = 0;
 
     stopAnimationTimer();
     animationTimer = setInterval(() => {
       const elapsedMs = Date.now() - startedAt;
-      const speedFactor = initialSpeedMultiplier * 2 ** (elapsedMs / 5000);
+      const speedFactor = baseInitialSpeed * 2 ** (elapsedMs / 5000);
+      speedSlider = sliderFromSpeed(speedFactor);
       stepBudget += speedFactor;
       const stepsThisTick = Math.floor(stepBudget);
       if (stepsThisTick <= 0) {
@@ -371,6 +384,7 @@
       if (cursor >= trace.length) {
         stopAnimationTimer();
         isAnimating = false;
+        speedSlider = startSliderValue;
         addSolved(solution);
         clearSolverAfterSolved('Animated solve complete. Added to Solved; Solver cleared.');
       }
