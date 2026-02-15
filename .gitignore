@@ -14,6 +14,7 @@ __pycache__/
 
 # Manim generated artifacts
 /manim/media/
+/media/
 /manim/__pycache__/
 
 # WebGL generated artifacts
