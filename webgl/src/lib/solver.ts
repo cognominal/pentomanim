@@ -137,6 +137,11 @@ export type TraceEvent = {
   placement: Placement;
 };
 
+export type PrefixSolutionCount = {
+  count: number;
+  complete: boolean;
+};
+
 function search(board: Board, used: Set<PieceName>): Placement[] | null {
   const empty = firstEmpty(board);
   if (empty === null) {
@@ -174,6 +179,56 @@ function search(board: Board, used: Set<PieceName>): Placement[] | null {
   }
 
   return null;
+}
+
+function countSearch(
+  board: Board,
+  used: Set<PieceName>,
+  currentCount: number,
+  maxCount: number,
+  limitHit: { value: boolean },
+): number {
+  if (currentCount >= maxCount) {
+    limitHit.value = true;
+    return currentCount;
+  }
+
+  const empty = firstEmpty(board);
+  if (empty === null) {
+    return currentCount + 1;
+  }
+
+  const [anchorR, anchorC] = empty;
+  let count = currentCount;
+  for (const name of PIECE_ORDER) {
+    if (used.has(name)) {
+      continue;
+    }
+    for (const orient of ORIENTATIONS[name]) {
+      for (const [cellR, cellC] of orient) {
+        const dr = anchorR - cellR;
+        const dc = anchorC - cellC;
+        const shifted = orient.map(([r, c]) => [r + dr, c + dc] as Coord);
+        if (!canPlace(board, shifted)) {
+          continue;
+        }
+        write(board, shifted, name);
+        if (!hasOnlyFiveMultipleEmptyRegions(board)) {
+          write(board, shifted, null);
+          continue;
+        }
+        used.add(name);
+        count = countSearch(board, used, count, maxCount, limitHit);
+        used.delete(name);
+        write(board, shifted, null);
+        if (limitHit.value) {
+          return count;
+        }
+      }
+    }
+  }
+
+  return count;
 }
 
 function searchWithTrace(
@@ -312,5 +367,34 @@ export function solveWithTraceFromPlacements(
   return {
     solution: [...fixedPlacements, ...remainder],
     trace,
+  };
+}
+
+export function countSolutionsFromPlacements(
+  fixedPlacements: Placement[],
+  maxCount = 200,
+): PrefixSolutionCount {
+  const board = buildBoard();
+  const used = new Set<PieceName>();
+
+  for (const p of fixedPlacements) {
+    if (used.has(p.name)) {
+      return { count: 0, complete: true };
+    }
+    if (!canPlace(board, p.cells)) {
+      return { count: 0, complete: true };
+    }
+    write(board, p.cells, p.name);
+    used.add(p.name);
+  }
+  if (!hasOnlyFiveMultipleEmptyRegions(board)) {
+    return { count: 0, complete: true };
+  }
+
+  const limitHit = { value: false };
+  const count = countSearch(board, used, 0, Math.max(1, maxCount), limitHit);
+  return {
+    count,
+    complete: !limitHit.value,
   };
 }

@@ -147,6 +147,46 @@ function search(board, used) {
     }
     return null;
 }
+function countSearch(board, used, currentCount, maxCount, limitHit) {
+    if (currentCount >= maxCount) {
+        limitHit.value = true;
+        return currentCount;
+    }
+    const empty = firstEmpty(board);
+    if (empty === null) {
+        return currentCount + 1;
+    }
+    const [anchorR, anchorC] = empty;
+    let count = currentCount;
+    for (const name of PIECE_ORDER) {
+        if (used.has(name)) {
+            continue;
+        }
+        for (const orient of ORIENTATIONS[name]) {
+            for (const [cellR, cellC] of orient) {
+                const dr = anchorR - cellR;
+                const dc = anchorC - cellC;
+                const shifted = orient.map(([r, c]) => [r + dr, c + dc]);
+                if (!canPlace(board, shifted)) {
+                    continue;
+                }
+                write(board, shifted, name);
+                if (!hasOnlyFiveMultipleEmptyRegions(board)) {
+                    write(board, shifted, null);
+                    continue;
+                }
+                used.add(name);
+                count = countSearch(board, used, count, maxCount, limitHit);
+                used.delete(name);
+                write(board, shifted, null);
+                if (limitHit.value) {
+                    return count;
+                }
+            }
+        }
+    }
+    return count;
+}
 function searchWithTrace(board, used, trace, maxTraceEvents) {
     const empty = firstEmpty(board);
     if (empty === null) {
@@ -263,6 +303,29 @@ export function solveWithTraceFromPlacements(fixedPlacements, maxTraceEvents = 3
     return {
         solution: [...fixedPlacements, ...remainder],
         trace,
+    };
+}
+export function countSolutionsFromPlacements(fixedPlacements, maxCount = 200) {
+    const board = buildBoard();
+    const used = new Set();
+    for (const p of fixedPlacements) {
+        if (used.has(p.name)) {
+            return { count: 0, complete: true };
+        }
+        if (!canPlace(board, p.cells)) {
+            return { count: 0, complete: true };
+        }
+        write(board, p.cells, p.name);
+        used.add(p.name);
+    }
+    if (!hasOnlyFiveMultipleEmptyRegions(board)) {
+        return { count: 0, complete: true };
+    }
+    const limitHit = { value: false };
+    const count = countSearch(board, used, 0, Math.max(1, maxCount), limitHit);
+    return {
+        count,
+        complete: !limitHit.value,
     };
 }
 //# sourceMappingURL=solver.js.map

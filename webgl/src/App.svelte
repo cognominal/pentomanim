@@ -11,7 +11,12 @@
     solutionKey,
   } from './lib/pentomino';
   import type { Placement, PieceName, Pose } from './lib/pentomino';
-  import { canApplyPlacement, solveFromPlacements, solveWithTraceFromPlacements } from './lib/solver';
+  import {
+    canApplyPlacement,
+    countSolutionsFromPlacements,
+    solveFromPlacements,
+    solveWithTraceFromPlacements,
+  } from './lib/solver';
   import type { TraceEvent } from './lib/solver';
 
   type Hover = { row: number; col: number } | null;
@@ -32,6 +37,7 @@
   let status = isTouchDevice
     ? 'Pick a piece and tap the board to place it.'
     : 'Pick a piece and click the board to place it.';
+  let currentPrefixSolutions: number | null = null;
   let isAnimating = false;
   let animationTimer: ReturnType<typeof setInterval> | null = null;
   let animationStepsUsed = 0;
@@ -47,6 +53,7 @@
 
   $: visiblePlacements = placements.slice(0, prefixCount);
   $: isErrorStatus = status.toLowerCase().includes('no completion');
+  $: showResetPrefixAction = currentPrefixSolutions === 0 && !isAnimating && visiblePlacements.length > 0;
   $: usedNames = new Set(visiblePlacements.map((p) => p.name));
   $: availablePieces = PIECE_ORDER.filter((name) => !usedNames.has(name));
   $: if (selectedPiece && usedNames.has(selectedPiece)) {
@@ -121,6 +128,7 @@
     selectedPiece = 'F';
     resetPose();
     status = message;
+    currentPrefixSolutions = null;
   }
 
   function commitPlacement(candidate: Placement): void {
@@ -133,12 +141,17 @@
     truncateToPrefix();
     placements = [...placements, clonePlacements([candidate])[0]];
     prefixCount = placements.length;
-    status = `${candidate.name} placed.`;
 
     if (placements.length === PIECE_ORDER.length) {
       addSolved(placements);
       clearSolverAfterSolved('Rectangle solved manually. Added to Solved; Solver cleared.');
+      return;
     }
+
+    const solutionStats = countSolutionsFromPlacements(clonePlacements(placements), 200);
+    currentPrefixSolutions = solutionStats.count;
+    const noun = solutionStats.count === 1 ? 'solution' : 'solutions';
+    status = `${candidate.name} placed. ${solutionStats.count} ${noun} for this prefix${solutionStats.complete ? '' : ' and counting'}.`;
   }
 
   function placementAtCell(row: number, col: number): Placement | null {
@@ -164,6 +177,7 @@
     selectedPiece = hit.name;
     resetPose();
     hover = null;
+    currentPrefixSolutions = null;
     status = `${hit.name} removed and selected.`;
     return true;
   }
@@ -192,9 +206,11 @@
     const start = clonePlacements(visiblePlacements);
     const solved = solveFromPlacements(start);
     if (!solved) {
+      currentPrefixSolutions = 0;
       status = 'No completion found from the current prefix.';
       return;
     }
+    currentPrefixSolutions = null;
     const snapshot = clonePlacements(solved);
     addSolved(snapshot);
     clearSolverAfterSolved('Solved from current state. Added to Solved; Solver cleared.');
@@ -208,6 +224,7 @@
     placements = clonePlacements(chosen);
     prefixCount = placements.length;
     selectedPiece = null;
+    currentPrefixSolutions = null;
     status = `Loaded solved rectangle #${index + 1} into Solver.`;
   }
 
@@ -267,6 +284,7 @@
 
   function sliderChanged(value: number): void {
     prefixCount = Math.max(0, Math.min(value, placements.length));
+    currentPrefixSolutions = null;
     status = `${prefixCount} pentominoes fixed in Solver.`;
   }
 
@@ -310,6 +328,14 @@
       }
     }
     return [];
+  }
+
+  function resetToLongestValidPrefix(): void {
+    const longest = longestValidPrefix(clonePlacements(visiblePlacements));
+    placements = clonePlacements(longest);
+    prefixCount = longest.length;
+    currentPrefixSolutions = null;
+    status = `Reset to longest valid prefix (${longest.length} pieces).`;
   }
 
   function stopAnimationTimer(): void {
@@ -471,7 +497,14 @@
   <section class="pane solver-pane">
     <header>
       <h2>Solver</h2>
-      <p class:error-status={isErrorStatus}>{status}</p>
+      <div class="status-row">
+        <p class:error-status={isErrorStatus}>{status}</p>
+        {#if showResetPrefixAction}
+          <button class="status-action" on:click={resetToLongestValidPrefix}>
+            Reset to the longest valid prefix
+          </button>
+        {/if}
+      </div>
     </header>
 
     <div class="piece-bank">

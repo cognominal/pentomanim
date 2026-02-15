@@ -98,6 +98,20 @@ header p.error-status {
   color: #ff6b6b;
 }
 
+.status-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.status-action {
+  padding: 0.2rem 0.45rem;
+  font-size: 0.74rem;
+  background: #3f2027;
+  border-color: #94404d;
+}
+
 .solver-pane {
   display: grid;
   grid-template-rows: auto auto auto 1fr auto;
