@@ -439,6 +439,19 @@ main.long-rect-mode .solved-pane {
   }
 }
 
+@media (max-width: 640px) {
+  .slider-row {
+    grid-template-columns: 1fr;
+    align-items: start;
+    gap: 0.35rem;
+  }
+
+  .slider-row input[type='range'] {
+    width: 100%;
+    min-width: 0;
+  }
+}
+
 @media (pointer: coarse), (max-width: 980px) {
   main.touch-mode .board-wrap {
     /* Keep board cells square while still fitting short mobile viewports. */
