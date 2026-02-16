@@ -1,5 +1,19 @@
 # Pentomanim
 
+## A  sucessful experiment
+
+This is an experiment in using the codex workflow.
+Most of you don't care and just want to play with the app [pentomanin](https://pentomanim.vercel.app/).
+[What it does](#what-it-does).
+
+The goal is to generate and maintain a svelte interactive pentamino solver app
+withc click or touch interface, meaning working in desktops, smartphone and tablets.
+
+[Personal](/PERSONAL.md) contains some trivia about my personal history
+with pentominos.
+
+## Details and install
+
 This repository contains two pentomino apps:
 
 1. `manim/`: Python + Manim animation scripts.
@@ -10,17 +24,20 @@ This repository contains two pentomino apps:
 Location: `/Users/cog/mine/pentomanim/manim`
 
 ### Files
+
 - `pentomino_6x10.py`
 - `pentomino_6x10_five.py`
 - `triplication_dfs_tree.py`
 - `rect_6x10_dfs_tree.py`
 
 ### What it does
+
 - Defines pentomino shapes and a DFS tiling solver.
 - Renders animation scenes showing pentomino placements on a `6x10` rectangle.
 - `pentomino_6x10_five.py` builds five unique solved rectangles and lays them out.
 
 ### Run
+
 From repo root:
 
 ```bash
@@ -35,6 +52,7 @@ manim -pqh manim/pentomino_6x10_five.py PentominoFiveRectangles  # high
 ```
 
 Output videos are written under:
+
 - `/Users/cog/mine/pentomanim/manim/media/videos/...`
 
 ### Keep `.md` and `.mp4` in sync with `.py`
@@ -55,6 +73,7 @@ python3 /Users/cog/mine/pentomanim/manim/sync_eponymous.py --file triplication_d
 ```
 
 Detailed behavior spec:
+
 - `/Users/cog/mine/pentomanim/manim/EPONYMOUS_SYNC_SPEC.md`
 
 ## 2) WebGL App
@@ -62,6 +81,7 @@ Detailed behavior spec:
 Location: `/Users/cog/mine/pentomanim/webgl`
 
 ### What it does
+
 - WebGL pentomino board with two tabs:
   - `Rectangle Solver`
   - `Triplication Solver`
@@ -98,12 +118,14 @@ bun run preview
 ```
 
 ### Deploy (Vercel)
+
 - Framework preset: `Vite`.
 - Root directory: `webgl`.
 - Build command: `bun run build`.
 - Output directory: `dist`.
 
 ## Notes
+
 - The WebGL app is the interactive rewrite of the Manim logic, with additional UI features.
 - Solver behavior and orientation logic are implemented in:
   - `/Users/cog/mine/pentomanim/webgl/src/lib/pentomino.ts`
