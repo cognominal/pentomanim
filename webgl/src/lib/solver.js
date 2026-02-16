@@ -277,8 +277,9 @@ export function canApplyPlacement(placements, candidate, rows = BOARD_ROWS, cols
     if (!canPlace(ctx, board, candidate.cells)) {
         return false;
     }
-    write(board, candidate.cells, candidate.name);
-    return hasOnlyFiveMultipleEmptyRegions(ctx, board);
+    // Manual placement accepts any non-overlapping in-bounds move.
+    // Unsolvable prefixes are handled separately via solve/count + reset-to-prefix UX.
+    return true;
 }
 export function solveWithTraceFromPlacements(fixedPlacements, maxTraceEvents = 3000, rows = BOARD_ROWS, cols = BOARD_COLS) {
     const ctx = { rows, cols };

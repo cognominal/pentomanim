@@ -351,8 +351,9 @@ export function canApplyPlacement(
   if (!canPlace(ctx, board, candidate.cells)) {
     return false;
   }
-  write(board, candidate.cells, candidate.name);
-  return hasOnlyFiveMultipleEmptyRegions(ctx, board);
+  // Manual placement accepts any non-overlapping in-bounds move.
+  // Unsolvable prefixes are handled separately via solve/count + reset-to-prefix UX.
+  return true;
 }
 
 export function solveWithTraceFromPlacements(
