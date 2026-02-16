@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from collections import defaultdict
 from dataclasses import dataclass, field
-import random
 import sys
 from time import perf_counter
 from typing import Dict, Iterable, List, Optional, Sequence, Set, Tuple
@@ -93,6 +92,8 @@ ORIENTATIONS: Dict[PieceName, List[Tuple[Coord, ...]]] = {
 
 TIME_SCALE = 6.0
 LABEL_FONT = "Andale Mono"
+DEFAULT_DISPLAY_DEPTH = 3
+RIGHTMOST_BRANCH_DEPTH = 12
 
 
 class SliceComplete(Exception):
@@ -395,7 +396,8 @@ def build_trace(
                             filled_keys,
                         )
                     unapply(name, shifted)
-                    attempts.append(("valid" if passes else "pruned", name, shifted))
+                    attempts.append(
+                        ("valid" if passes else "pruned", name, shifted))
 
         display_indices: Set[int] = set()
         can_display_children = False
@@ -413,7 +415,8 @@ def build_trace(
                     for sorient in ORIENTATIONS[sname]:
                         for scr, scc in sorient:
                             sdr, sdc = sar - scr, sac - scc
-                            sshifted = tuple((r + sdr, c + sdc) for r, c in sorient)
+                            sshifted = tuple((r + sdr, c + sdc)
+                                             for r, c in sorient)
                             if not can_place(sshifted):
                                 continue
                             apply(sname, sshifted)
@@ -427,7 +430,8 @@ def build_trace(
                                     filled_keys,
                                 )
                             if ok:
-                                next_first = first_move if first_move is not None else (sname, sshifted)
+                                next_first = first_move if first_move is not None else (
+                                    sname, sshifted)
                                 got = solve_first(next_first)
                                 if got is not None:
                                     unapply(sname, sshifted)
@@ -439,10 +443,11 @@ def build_trace(
 
         if display_node_id is not None:
             parent = nodes[display_node_id]
-            local_depth_cap = 9 if parent.rightmost_chain else 3
+            local_depth_cap = RIGHTMOST_BRANCH_DEPTH if parent.rightmost_chain else DEFAULT_DISPLAY_DEPTH
             can_display_children = depth < local_depth_cap
         if can_display_children and attempts:
-            valid_indices = [i for i, (kind, _, _) in enumerate(attempts) if kind == "valid"]
+            valid_indices = [i for i, (kind, _, _) in enumerate(
+                attempts) if kind == "valid"]
             next_move = solution_next_move()
             if next_move is not None:
                 rightmost_idx = next(
@@ -454,7 +459,8 @@ def build_trace(
                     -1,
                 )
             if rightmost_idx < 0:
-                rightmost_idx = valid_indices[-1] if valid_indices else (len(attempts) - 1)
+                rightmost_idx = valid_indices[-1] if valid_indices else (
+                    len(attempts) - 1)
             if parent is not None and parent.rightmost_chain:
                 # On the highlighted deep branch, only keep the rightmost child.
                 display_indices = {rightmost_idx}
@@ -463,12 +469,19 @@ def build_trace(
             else:
                 display_indices = {0, 1, rightmost_idx}
 
+        found_solution = False
+
         for idx, (kind, name, shifted) in enumerate(attempts):
             parent = nodes[display_node_id] if display_node_id is not None else None
             parent_is_chain = parent.rightmost_chain if parent is not None else False
             chain_root_ok = depth == 0 or parent_is_chain
             is_rightmost_display = idx == rightmost_idx
             child_on_chain = chain_root_ok and is_rightmost_display
+
+            # For the 6x10 visualization variant, only recurse along displayed
+            # branches so rendering stays interactive.
+            if idx not in display_indices:
+                continue
 
             if kind == "pruned":
                 if idx in display_indices and display_node_id is not None:
@@ -505,12 +518,17 @@ def build_trace(
                 return False, subtree_nodes, True
 
             if solved:
-                if display_node_id is not None:
-                    node = nodes[display_node_id]
-                    node.elapsed_ms = (perf_counter() - start_t) * 1000.0
-                    node.explored_subnodes = max(0, subtree_nodes - 1)
-                    events.append(Event("exit", display_node_id))
-                return True, subtree_nodes, False
+                # Keep rightmost-chain behavior as immediate success return.
+                if parent_is_chain:
+                    if display_node_id is not None:
+                        node = nodes[display_node_id]
+                        node.elapsed_ms = (perf_counter() - start_t) * 1000.0
+                        node.explored_subnodes = max(0, subtree_nodes - 1)
+                        events.append(Event("exit", display_node_id))
+                    return True, subtree_nodes, False
+                # For non-chain nodes, continue to materialize sibling structure.
+                found_solution = True
+                continue
 
         if display_node_id is not None:
             node = nodes[display_node_id]
@@ -518,6 +536,8 @@ def build_trace(
             node.explored_subnodes = max(0, subtree_nodes - 1)
             events.append(Event("exit", display_node_id))
 
+        if found_solution:
+            return True, subtree_nodes, False
         return False, subtree_nodes, False
 
     root_id = create_node(parent_id=None, depth=0)
@@ -559,8 +579,9 @@ def compute_layout(
 
     y_metric: Dict[int, float] = {root_id: 0.0}
     normal_step = 1.8
-    # Fit 9 rightmost-chain levels into the same vertical span as 3 normal levels.
-    chain_step = (normal_step * 3.0) / 9.0
+    # Fit rightmost-chain levels into the same vertical span as the normal depth cap.
+    chain_step = (normal_step * DEFAULT_DISPLAY_DEPTH) / \
+        float(RIGHTMOST_BRANCH_DEPTH)
 
     def assign_y(nid: int) -> None:
         base = y_metric[nid]
@@ -585,79 +606,7 @@ def compute_layout(
     return out
 
 
-def orient_solution_chain_to_right(
-    trace: TraceResult,
-    positions: Dict[int, Tuple[float, float, float]],
-) -> Dict[int, Tuple[float, float, float]]:
-    root = trace.nodes.get(0)
-    if root is None:
-        return positions
-
-    chain_children = [
-        cid for cid in root.children
-        if cid in trace.nodes and trace.nodes[cid].rightmost_chain
-    ]
-    if not chain_children:
-        return positions
-
-    cx = positions[chain_children[0]][0]
-    if cx >= 0:
-        return positions
-
-    return {nid: (-x, y, z) for nid, (x, y, z) in positions.items()}
-
-
-class TriplicationDFSTreeSeparate(Scene):
-    def pick_order_with_right_solution_branch(
-        self,
-        rows: int,
-        cols: int,
-        mask_cells: List[Coord],
-        base_pieces: List[PieceName],
-        attempts: int = 80,
-    ) -> List[PieceName]:
-        def score(order: List[PieceName]) -> float:
-            problem = Problem(
-                rows=rows,
-                cols=cols,
-                mask_cells=mask_cells,
-                selected_pieces=order,
-            )
-            trace = build_trace(
-                problem=problem,
-                enable_pruning=True,
-                max_display_depth=3,
-                max_display_children=3,
-                max_nodes=1_500_000,
-            )
-            layout = compute_layout(trace.nodes)
-            root = trace.nodes.get(0)
-            if root is None:
-                return -1e9
-            chain_children = [
-                cid for cid in root.children
-                if trace.nodes.get(cid) is not None and trace.nodes[cid].rightmost_chain
-            ]
-            if not chain_children:
-                return -1e9
-            # Prefer roots whose solution-continuation child is farther right.
-            x = layout[chain_children[0]][0]
-            return x
-
-        best = list(base_pieces)
-        best_score = score(best)
-        pool = list(base_pieces)
-        for _ in range(attempts):
-            random.shuffle(pool)
-            cand = list(pool)
-            s = score(cand)
-            if s > best_score:
-                best = cand
-                best_score = s
-            if s > 0.0:
-                return cand
-        return best
-
+class rect_6x10DFSTree(Scene):
     def _init_slice(self) -> None:
         self._timeline_t = 0.0
         self._slice_start = 0.0
@@ -666,12 +615,14 @@ class TriplicationDFSTreeSeparate(Scene):
             if arg.startswith("--slice="):
                 raw = arg.split("=", 1)[1].strip()
                 if ":" not in raw:
-                    raise ValueError("Invalid --slice format. Expected --slice=START:END")
+                    raise ValueError(
+                        "Invalid --slice format. Expected --slice=START:END")
                 start_str, end_str = raw.split(":", 1)
                 start = float(start_str)
                 end = float(end_str)
                 if start < 0 or end <= start:
-                    raise ValueError("Invalid --slice values. Require 0 <= START < END")
+                    raise ValueError(
+                        "Invalid --slice values. Require 0 <= START < END")
                 self._slice_start = start
                 self._slice_end = end
                 break
@@ -697,7 +648,8 @@ class TriplicationDFSTreeSeparate(Scene):
             self._timeline_t = seg_end
             return
 
-        visible_duration = min(seg_end, self._slice_end) - max(seg_start, self._slice_start)
+        visible_duration = min(seg_end, self._slice_end) - \
+            max(seg_start, self._slice_start)
         if visible_duration <= 0:
             self._timeline_t = seg_end
             if seg_end >= self._slice_end:
@@ -727,7 +679,8 @@ class TriplicationDFSTreeSeparate(Scene):
             self._timeline_t = seg_end
             return
 
-        visible_duration = min(seg_end, self._slice_end) - max(seg_start, self._slice_start)
+        visible_duration = min(seg_end, self._slice_end) - \
+            max(seg_start, self._slice_start)
         if visible_duration > 0 and seg_start >= self._slice_start:
             self.wait(visible_duration)
 
@@ -737,20 +690,14 @@ class TriplicationDFSTreeSeparate(Scene):
 
     def construct(self) -> None:
         self._init_slice()
-        # Deterministic solvable triplication problem found offline.
-        rows, cols, mask_cells = triplicate_piece_cells("Z")
-        selected = self.pick_order_with_right_solution_branch(
-            rows=rows,
-            cols=cols,
-            mask_cells=mask_cells,
-            base_pieces=["T", "I", "P", "X", "W", "U", "Y", "N", "V"],
-            attempts=80,
-        )
+        # Full rectangle problem: 10x6 board, all 12 pentominoes.
+        rows, cols = 6, 10
+        mask_cells = [(r, c) for r in range(rows) for c in range(cols)]
         problem = Problem(
             rows=rows,
             cols=cols,
             mask_cells=mask_cells,
-            selected_pieces=selected,
+            selected_pieces=list(PIECES.keys()),
         )
 
         try:
@@ -778,13 +725,15 @@ class TriplicationDFSTreeSeparate(Scene):
         label_text = Text(label, font_size=20, color=WHITE, font=LABEL_FONT)
         label_text.move_to((label_col_x, row_y, 0), aligned_edge=LEFT)
 
-        time_text = Text(f"{elapsed_ms:.1f} ms", font_size=20, color=WHITE, font=LABEL_FONT)
+        time_text = Text(f"{elapsed_ms:.1f} ms",
+                         font_size=20, color=WHITE, font=LABEL_FONT)
         time_text.move_to((time_col_x, row_y, 0), aligned_edge=LEFT)
 
         step_text = Text(f"{step}", font_size=20, color=WHITE, font=LABEL_FONT)
         step_text.move_to((step_col_x, row_y, 0), aligned_edge=LEFT)
 
-        ratio_text = Text(f"{per_step:.3f} ms", font_size=20, color=WHITE, font=LABEL_FONT)
+        ratio_text = Text(f"{per_step:.3f} ms", font_size=20,
+                          color=WHITE, font=LABEL_FONT)
         ratio_text.move_to((ratio_col_x, row_y, 0), aligned_edge=LEFT)
 
         return VGroup(label_text, time_text, step_text, ratio_text)
@@ -797,14 +746,14 @@ class TriplicationDFSTreeSeparate(Scene):
         trace = build_trace(
             problem=problem,
             enable_pruning=enable_pruning,
-            max_display_depth=3,
+            max_display_depth=DEFAULT_DISPLAY_DEPTH,
             max_display_children=3,
             max_nodes=1_500_000,
         )
         vanilla_trace = build_trace(
             problem=problem,
             enable_pruning=False,
-            max_display_depth=3,
+            max_display_depth=DEFAULT_DISPLAY_DEPTH,
             max_display_children=3,
             max_nodes=1_500_000,
         )
@@ -812,7 +761,7 @@ class TriplicationDFSTreeSeparate(Scene):
             trace = add_pruned_descendants_from_unpruned(
                 pruned_trace=trace,
                 unpruned_trace=vanilla_trace,
-                max_display_depth=3,
+                max_display_depth=DEFAULT_DISPLAY_DEPTH,
                 max_display_children=3,
             )
         frame_w = float(self.camera.frame_width)
@@ -822,7 +771,6 @@ class TriplicationDFSTreeSeparate(Scene):
             total_width=frame_w * 0.82,
             top_y=(frame_h * 0.5) - 2.0,
         )
-        positions = orient_solution_chain_to_right(trace, positions)
         mask_set = set(problem.mask_cells)
 
         top = (frame_h * 0.5) - 0.25
@@ -837,11 +785,14 @@ class TriplicationDFSTreeSeparate(Scene):
 
         header_label = Text("", font_size=20, color=WHITE, font=LABEL_FONT)
         header_label.move_to((label_col_x, header_y, 0), aligned_edge=LEFT)
-        header_time = Text("time-spent", font_size=20, color=WHITE, font=LABEL_FONT)
+        header_time = Text("time-spent", font_size=20,
+                           color=WHITE, font=LABEL_FONT)
         header_time.move_to((time_col_x, header_y, 0), aligned_edge=LEFT)
-        header_step = Text("step-nr", font_size=20, color=WHITE, font=LABEL_FONT)
+        header_step = Text("step-nr", font_size=20,
+                           color=WHITE, font=LABEL_FONT)
         header_step.move_to((step_col_x, header_y, 0), aligned_edge=LEFT)
-        header_ratio = Text("time/step:", font_size=20, color=WHITE, font=LABEL_FONT)
+        header_ratio = Text("time/step:", font_size=20,
+                            color=WHITE, font=LABEL_FONT)
         header_ratio.move_to((ratio_col_x, header_y, 0), aligned_edge=LEFT)
         header = VGroup(header_label, header_time, header_step, header_ratio)
 
@@ -972,13 +923,17 @@ class TriplicationDFSTreeSeparate(Scene):
                 y0 = -r * cell_size
                 y1 = -(r + 1) * cell_size
                 if (r - 1, c) not in occupied:
-                    lines.add(Line((x0, y0, 0), (x1, y0, 0), stroke_color=BLACK, stroke_width=1.0))
+                    lines.add(Line((x0, y0, 0), (x1, y0, 0),
+                              stroke_color=BLACK, stroke_width=1.0))
                 if (r + 1, c) not in occupied:
-                    lines.add(Line((x0, y1, 0), (x1, y1, 0), stroke_color=BLACK, stroke_width=1.0))
+                    lines.add(Line((x0, y1, 0), (x1, y1, 0),
+                              stroke_color=BLACK, stroke_width=1.0))
                 if (r, c - 1) not in occupied:
-                    lines.add(Line((x0, y0, 0), (x0, y1, 0), stroke_color=BLACK, stroke_width=1.0))
+                    lines.add(Line((x0, y0, 0), (x0, y1, 0),
+                              stroke_color=BLACK, stroke_width=1.0))
                 if (r, c + 1) not in occupied:
-                    lines.add(Line((x1, y0, 0), (x1, y1, 0), stroke_color=BLACK, stroke_width=1.0))
+                    lines.add(Line((x1, y0, 0), (x1, y1, 0),
+                              stroke_color=BLACK, stroke_width=1.0))
             return lines
 
         board_group = VGroup()
