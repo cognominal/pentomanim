@@ -345,7 +345,7 @@ button:disabled {
 
 .board-wrap {
   width: min(100%, 840px);
-  aspect-ratio: var(--board-cols) / var(--board-rows);
+  aspect-ratio: var(--board-ratio);
   justify-self: center;
 }
 
@@ -402,7 +402,7 @@ main.long-rect-mode .solved-pane {
 }
 
 .mini-board {
-  aspect-ratio: var(--board-cols) / var(--board-rows);
+  aspect-ratio: var(--board-ratio);
   width: 100%;
 }
 
@@ -441,8 +441,8 @@ main.long-rect-mode .solved-pane {
 
 @media (pointer: coarse), (max-width: 980px) {
   main.touch-mode .board-wrap {
-    width: min(100%, 92vw);
+    /* Keep board cells square while still fitting short mobile viewports. */
+    width: min(100%, 92vw, calc(48dvh * var(--board-ratio)));
     max-width: 92vw;
-    max-height: 48dvh;
   }
 }

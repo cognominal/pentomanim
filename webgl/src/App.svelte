@@ -1025,7 +1025,7 @@
       {/if}
     </div>
 
-    <div class="board-wrap" style={`--board-cols:${rectangleDisplayCols};--board-rows:${rectangleDisplayRows}`}>
+    <div class="board-wrap" style={`--board-ratio:${rectangleDisplayCols / rectangleDisplayRows}`}>
       <BoardWebGL
         rows={rectangleDisplayRows}
         cols={rectangleDisplayCols}
@@ -1089,7 +1089,7 @@
             <div class="solved-index">Rectangle {idx + 1}</div>
             <div
               class="mini-board"
-              style={`--board-cols:${rotatedSolutionView ? solution.rows : solution.cols};--board-rows:${rotatedSolutionView ? solution.cols : solution.rows}`}
+              style={`--board-ratio:${(rotatedSolutionView ? solution.rows : solution.cols) / (rotatedSolutionView ? solution.cols : solution.rows)}`}
             >
               <BoardWebGL
                 placements={toDisplayPlacements(solution.placements, solution.rows, rotatedSolutionView)}
@@ -1182,7 +1182,7 @@
         {/if}
       </div>
 
-      <div class="board-wrap" style={`--board-cols:${triplicationProblem.cols};--board-rows:${triplicationProblem.rows}`}>
+      <div class="board-wrap" style={`--board-ratio:${triplicationProblem.cols / triplicationProblem.rows}`}>
         <BoardWebGL
           rows={triplicationProblem.rows}
           cols={triplicationProblem.cols}
@@ -1243,7 +1243,7 @@
         {#each tripSolvedSolutions as solution, idx}
           <button class="solved-card" on:click={() => importTripSolved(idx)} disabled={tripIsAnimating}>
             <div class="solved-index">Triplication {idx + 1}</div>
-            <div class="mini-board" style={`--board-cols:${solution.problem.cols};--board-rows:${solution.problem.rows}`}>
+            <div class="mini-board" style={`--board-ratio:${solution.problem.cols / solution.problem.rows}`}>
               <BoardWebGL
                 placements={solution.placements}
                 maskCells={solution.problem.maskCells}
