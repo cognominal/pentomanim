@@ -15,7 +15,7 @@ with click or touch interface, meaning working in desktops, smartphone and table
 on generating a  manim video about DFS using pentomino solving as
 an example. Nothing much to see now except
 [that](manim/triplication_dfs_tree.mp4).
-![screen capture](/manim/triplication_dfs_tree.capture.png)
+![screen capture](manim/triplication_dfs_tree.gif)
 
 [Personal](/PERSONAL.md) contains some trivia about my personal history
 with pentominoes.
