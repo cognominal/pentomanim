@@ -32,3 +32,13 @@ manim -pql manim/pentomino_6x10_five.py PentominoFiveRectangles
 Rendered media is written under:
 - `/Users/cog/mine/pentomanim/manim/media/videos/`
 - `/Users/cog/mine/pentomanim/manim/media/texts/`
+
+## Eponymous Sync
+Keep `<name>.md` and `<name>.mp4` aligned with each `<name>.py` scene script:
+
+```bash
+python3 /Users/cog/mine/pentomanim/manim/sync_eponymous.py
+```
+
+Spec:
+- `/Users/cog/mine/pentomanim/manim/EPONYMOUS_SYNC_SPEC.md`

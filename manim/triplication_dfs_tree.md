@@ -54,3 +54,12 @@ pruning emphasis and live `vanilla` vs `mod-5` counters.
 ## Output
 
 - Standard Manim video output under media folders.
+
+<!-- AUTO-SYNC:START -->
+source_file: triplication_dfs_tree.py
+source_sha256: 3cfe6e3894aaf9c7d424dd24a9c9c8331f22c80711c8ef8cc37fb0a8014f5750
+source_mtime_utc: 2026-02-16T01:39:01+00:00
+synced_at_utc: 2026-02-16T14:18:36+00:00
+scene: TriplicationDFSTreeSeparate
+render_cmd: manim -qh triplication_dfs_tree.py TriplicationDFSTreeSeparate
+<!-- AUTO-SYNC:END -->

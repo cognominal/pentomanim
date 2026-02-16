@@ -41,3 +41,12 @@ Per-solution animation flow:
 ## Output
 
 - Standard Manim video output under media folders.
+
+<!-- AUTO-SYNC:START -->
+source_file: pentomino_6x10_five.py
+source_sha256: 2a8c01593a4b3b1c5099cc86bb25554e7d286dd99c87378e1060ab16576643af
+source_mtime_utc: 2026-02-14T10:13:01+00:00
+synced_at_utc: 2026-02-16T14:08:20+00:00
+scene: PentominoFiveRectangles
+render_cmd: manim -qh pentomino_6x10_five.py PentominoFiveRectangles
+<!-- AUTO-SYNC:END -->
