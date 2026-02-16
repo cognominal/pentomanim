@@ -3,14 +3,22 @@
 ## A  sucessful experiment
 
 This is an experiment in using the codex workflow.
-Most of you don't care and just want to play with the app [pentomanin](https://pentomanim.vercel.app/).
-[What it does](#what-it-does).
+Most of you don't care and just want to play with the svelte app
+[pentomanin](https://pentomanim.vercel.app/) hosted on vercel.
+![How it looks](svelte-app.capture.png)
+[What it does](#2-webgl-app).
+
+I did not do any publicity execpt a [post](https://discord.com/channels/457912077277855764/1472360313167806595) on discord.
 
 The goal is to generate and maintain a svelte interactive pentamino solver app
-withc click or touch interface, meaning working in desktops, smartphone and tablets.
+with click or touch interface, meaning working in desktops, smartphone and tablets. I ended up designing the interface on manim. And I am now experimenting
+on generating a  manim video about DFS using pentomino solving as
+an example. Nothing much to see now except
+[that](manim/triplication_dfs_tree.mp4).
+![screen capture](/manim/triplication_dfs_tree.capture.png)
 
 [Personal](/PERSONAL.md) contains some trivia about my personal history
-with pentominos.
+with pentominoes.
 
 ## Details and install
 
