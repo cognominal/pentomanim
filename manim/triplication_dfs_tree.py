@@ -14,7 +14,6 @@ from manim import (
     FadeOut,
     LEFT,
     Line,
-    ReplacementTransform,
     RIGHT,
     Scene,
     Square,
@@ -91,7 +90,7 @@ ORIENTATIONS: Dict[PieceName, List[Tuple[Coord, ...]]] = {
     name: unique_orientations(cells) for name, cells in PIECES.items()
 }
 
-TIME_SCALE = 3.0
+TIME_SCALE = 6.0
 LABEL_FONT = "Andale Mono"
 
 
@@ -113,6 +112,11 @@ class NodeData:
     parent_id: Optional[int]
     depth: int
     board: Dict[Coord, PieceName]
+    pruned: bool = False
+    counterfactual: bool = False
+    rightmost_chain: bool = False
+    step_at_enter: int = 0
+    elapsed_ms_at_enter: float = 0.0
     children: List[int] = field(default_factory=list)
     elapsed_ms: Optional[float] = None
     explored_subnodes: int = 0
@@ -128,6 +132,99 @@ class Event:
 class TraceResult:
     nodes: Dict[int, NodeData]
     events: List[Event]
+    total_steps: int
+    total_elapsed_ms: float
+    step_elapsed_ms: List[float]
+
+
+def board_signature(board: Dict[Coord, PieceName]) -> str:
+    return "|".join(
+        f"{r},{c}:{name}" for (r, c), name in sorted(board.items(), key=lambda item: (item[0][0], item[0][1]))
+    )
+
+
+def add_pruned_descendants_from_unpruned(
+    pruned_trace: TraceResult,
+    unpruned_trace: TraceResult,
+    max_display_depth: int,
+    max_display_children: int,
+) -> TraceResult:
+    nodes = {
+        nid: NodeData(
+            node_id=node.node_id,
+            parent_id=node.parent_id,
+            depth=node.depth,
+            board=dict(node.board),
+            pruned=node.pruned,
+            counterfactual=node.counterfactual,
+            rightmost_chain=node.rightmost_chain,
+            children=list(node.children),
+            elapsed_ms=node.elapsed_ms,
+            explored_subnodes=node.explored_subnodes,
+            step_at_enter=node.step_at_enter,
+            elapsed_ms_at_enter=node.elapsed_ms_at_enter,
+        )
+        for nid, node in pruned_trace.nodes.items()
+    }
+    events: List[Event] = []
+    next_id = (max(nodes.keys()) + 1) if nodes else 0
+
+    unpruned_by_sig: Dict[str, int] = {}
+    for ev in unpruned_trace.events:
+        if ev.kind != "enter":
+            continue
+        sig = board_signature(unpruned_trace.nodes[ev.node_id].board)
+        if sig not in unpruned_by_sig:
+            unpruned_by_sig[sig] = ev.node_id
+
+    def clone_subtree(un_id: int, parent_id: int) -> None:
+        nonlocal next_id
+        parent = nodes[parent_id]
+        if parent.depth >= max_display_depth:
+            return
+
+        un_node = unpruned_trace.nodes[un_id]
+        for un_child_id in un_node.children[:max_display_children]:
+            if len(parent.children) >= max_display_children:
+                break
+            un_child = unpruned_trace.nodes[un_child_id]
+            new_id = next_id
+            next_id += 1
+            nodes[new_id] = NodeData(
+                node_id=new_id,
+                parent_id=parent_id,
+                depth=parent.depth + 1,
+                board=dict(un_child.board),
+                pruned=False,
+                counterfactual=True,
+                rightmost_chain=un_child.rightmost_chain,
+                step_at_enter=un_child.step_at_enter,
+                elapsed_ms_at_enter=un_child.elapsed_ms_at_enter,
+            )
+            parent.children.append(new_id)
+            events.append(Event("enter", new_id))
+            clone_subtree(un_child_id, new_id)
+            events.append(Event("exit", new_id))
+
+    for ev in pruned_trace.events:
+        events.append(ev)
+        if ev.kind != "enter":
+            continue
+        node = nodes[ev.node_id]
+        if not node.pruned:
+            continue
+        sig = board_signature(node.board)
+        un_id = unpruned_by_sig.get(sig)
+        if un_id is not None:
+            clone_subtree(un_id, ev.node_id)
+
+    return TraceResult(
+        nodes=nodes,
+        events=events,
+        total_steps=pruned_trace.total_steps,
+        total_elapsed_ms=pruned_trace.total_elapsed_ms,
+        step_elapsed_ms=list(pruned_trace.step_elapsed_ms),
+    )
 
 
 def triplicate_piece_cells(piece: PieceName) -> Tuple[int, int, List[Coord]]:
@@ -191,7 +288,6 @@ def build_trace(
     max_display_children: int = 3,
     max_nodes: int = 1_500_000,
 ) -> TraceResult:
-    mask_set = set(problem.mask_cells)
     sorted_mask = sorted(problem.mask_cells)
     allowed_keys = {key(rc) for rc in problem.mask_cells}
 
@@ -203,16 +299,28 @@ def build_trace(
     events: List[Event] = []
     next_node_id = 0
     node_counter = 0
+    search_start = perf_counter()
+    step_elapsed_ms: List[float] = [0.0]
 
-    def create_node(parent_id: Optional[int], depth: int) -> int:
+    def create_node(
+        parent_id: Optional[int],
+        depth: int,
+        pruned: bool = False,
+        rightmost_chain: bool = False,
+    ) -> int:
         nonlocal next_node_id
         nid = next_node_id
         next_node_id += 1
+        elapsed_now = (perf_counter() - search_start) * 1000.0
         nodes[nid] = NodeData(
             node_id=nid,
             parent_id=parent_id,
             depth=depth,
             board=dict(board),
+            pruned=pruned,
+            rightmost_chain=rightmost_chain,
+            step_at_enter=node_counter,
+            elapsed_ms_at_enter=elapsed_now,
         )
         events.append(Event("enter", nid))
         if parent_id is not None:
@@ -247,6 +355,7 @@ def build_trace(
     def dfs(depth: int, display_node_id: Optional[int]) -> Tuple[bool, int, bool]:
         nonlocal node_counter
         node_counter += 1
+        step_elapsed_ms.append((perf_counter() - search_start) * 1000.0)
         if node_counter > max_nodes:
             return False, 1, True
 
@@ -263,8 +372,7 @@ def build_trace(
             return True, subtree_nodes, False
 
         ar, ac = anchor
-        shown_children = 0
-
+        attempts: List[Tuple[str, PieceName, Tuple[Coord, ...]]] = []
         for name in problem.selected_pieces:
             if name in used:
                 continue
@@ -276,48 +384,132 @@ def build_trace(
                         continue
 
                     apply(name, shifted)
-                    if enable_pruning and not has_only_five_multiple_void_regions(
-                        problem.rows,
-                        problem.cols,
-                        allowed_keys,
-                        sorted_mask,
-                        filled_keys,
-                    ):
-                        unapply(name, shifted)
-                        continue
-
-                    child_display_id: Optional[int] = None
-                    if (
-                        display_node_id is not None
-                        and depth < max_display_depth
-                        and shown_children < max_display_children
-                    ):
-                        child_display_id = create_node(
-                            display_node_id, depth + 1)
-                        shown_children += 1
-
-                    solved, child_count, aborted = dfs(
-                        depth + 1, child_display_id)
-                    subtree_nodes += child_count
+                    passes = True
+                    if enable_pruning:
+                        passes = has_only_five_multiple_void_regions(
+                            problem.rows,
+                            problem.cols,
+                            allowed_keys,
+                            sorted_mask,
+                            filled_keys,
+                        )
                     unapply(name, shifted)
+                    attempts.append(("valid" if passes else "pruned", name, shifted))
 
-                    if aborted:
-                        if display_node_id is not None:
-                            node = nodes[display_node_id]
-                            node.elapsed_ms = (
-                                perf_counter() - start_t) * 1000.0
-                            node.explored_subnodes = max(0, subtree_nodes - 1)
-                            events.append(Event("exit", display_node_id))
-                        return False, subtree_nodes, True
+        display_indices: Set[int] = set()
+        can_display_children = False
+        rightmost_idx = -1
 
-                    if solved:
-                        if display_node_id is not None:
-                            node = nodes[display_node_id]
-                            node.elapsed_ms = (
-                                perf_counter() - start_t) * 1000.0
-                            node.explored_subnodes = max(0, subtree_nodes - 1)
-                            events.append(Event("exit", display_node_id))
-                        return True, subtree_nodes, False
+        def solution_next_move() -> Optional[Tuple[PieceName, Tuple[Coord, ...]]]:
+            def solve_first(first_move: Optional[Tuple[PieceName, Tuple[Coord, ...]]]) -> Optional[Tuple[PieceName, Tuple[Coord, ...]]]:
+                spot = first_empty()
+                if spot is None:
+                    return first_move
+                sar, sac = spot
+                for sname in problem.selected_pieces:
+                    if sname in used:
+                        continue
+                    for sorient in ORIENTATIONS[sname]:
+                        for scr, scc in sorient:
+                            sdr, sdc = sar - scr, sac - scc
+                            sshifted = tuple((r + sdr, c + sdc) for r, c in sorient)
+                            if not can_place(sshifted):
+                                continue
+                            apply(sname, sshifted)
+                            ok = True
+                            if enable_pruning:
+                                ok = has_only_five_multiple_void_regions(
+                                    problem.rows,
+                                    problem.cols,
+                                    allowed_keys,
+                                    sorted_mask,
+                                    filled_keys,
+                                )
+                            if ok:
+                                next_first = first_move if first_move is not None else (sname, sshifted)
+                                got = solve_first(next_first)
+                                if got is not None:
+                                    unapply(sname, sshifted)
+                                    return got
+                            unapply(sname, sshifted)
+                return None
+
+            return solve_first(None)
+
+        if display_node_id is not None:
+            parent = nodes[display_node_id]
+            local_depth_cap = 9 if parent.rightmost_chain else 3
+            can_display_children = depth < local_depth_cap
+        if can_display_children and attempts:
+            valid_indices = [i for i, (kind, _, _) in enumerate(attempts) if kind == "valid"]
+            next_move = solution_next_move()
+            if next_move is not None:
+                rightmost_idx = next(
+                    (
+                        i
+                        for i, (kind, name, shifted) in enumerate(attempts)
+                        if kind == "valid" and name == next_move[0] and shifted == next_move[1]
+                    ),
+                    -1,
+                )
+            if rightmost_idx < 0:
+                rightmost_idx = valid_indices[-1] if valid_indices else (len(attempts) - 1)
+            if parent is not None and parent.rightmost_chain:
+                # On the highlighted deep branch, only keep the rightmost child.
+                display_indices = {rightmost_idx}
+            elif len(attempts) <= max_display_children:
+                display_indices = set(range(len(attempts)))
+            else:
+                display_indices = {0, 1, rightmost_idx}
+
+        for idx, (kind, name, shifted) in enumerate(attempts):
+            parent = nodes[display_node_id] if display_node_id is not None else None
+            parent_is_chain = parent.rightmost_chain if parent is not None else False
+            chain_root_ok = depth == 0 or parent_is_chain
+            is_rightmost_display = idx == rightmost_idx
+            child_on_chain = chain_root_ok and is_rightmost_display
+
+            if kind == "pruned":
+                if idx in display_indices and display_node_id is not None:
+                    apply(name, shifted)
+                    pruned_id = create_node(
+                        display_node_id,
+                        depth + 1,
+                        pruned=True,
+                        rightmost_chain=child_on_chain,
+                    )
+                    events.append(Event("exit", pruned_id))
+                    unapply(name, shifted)
+                continue
+
+            apply(name, shifted)
+            child_display_id: Optional[int] = None
+            if idx in display_indices and display_node_id is not None:
+                child_display_id = create_node(
+                    display_node_id,
+                    depth + 1,
+                    rightmost_chain=child_on_chain,
+                )
+
+            solved, child_count, aborted = dfs(depth + 1, child_display_id)
+            subtree_nodes += child_count
+            unapply(name, shifted)
+
+            if aborted:
+                if display_node_id is not None:
+                    node = nodes[display_node_id]
+                    node.elapsed_ms = (perf_counter() - start_t) * 1000.0
+                    node.explored_subnodes = max(0, subtree_nodes - 1)
+                    events.append(Event("exit", display_node_id))
+                return False, subtree_nodes, True
+
+            if solved:
+                if display_node_id is not None:
+                    node = nodes[display_node_id]
+                    node.elapsed_ms = (perf_counter() - start_t) * 1000.0
+                    node.explored_subnodes = max(0, subtree_nodes - 1)
+                    events.append(Event("exit", display_node_id))
+                return True, subtree_nodes, False
 
         if display_node_id is not None:
             node = nodes[display_node_id]
@@ -329,10 +521,21 @@ def build_trace(
 
     root_id = create_node(parent_id=None, depth=0)
     dfs(depth=0, display_node_id=root_id)
-    return TraceResult(nodes=nodes, events=events)
+    total_elapsed_ms = (perf_counter() - search_start) * 1000.0
+    return TraceResult(
+        nodes=nodes,
+        events=events,
+        total_steps=node_counter,
+        total_elapsed_ms=total_elapsed_ms,
+        step_elapsed_ms=step_elapsed_ms,
+    )
 
 
-def compute_layout(nodes: Dict[int, NodeData]) -> Dict[int, Tuple[float, float, float]]:
+def compute_layout(
+    nodes: Dict[int, NodeData],
+    total_width: float,
+    top_y: float,
+) -> Dict[int, Tuple[float, float, float]]:
     by_id = nodes
     root_id = 0
     leaf_cursor = 0
@@ -353,15 +556,30 @@ def compute_layout(nodes: Dict[int, NodeData]) -> Dict[int, Tuple[float, float, 
 
     assign_x(root_id)
 
+    y_metric: Dict[int, float] = {root_id: 0.0}
+    normal_step = 1.8
+    # Fit 9 rightmost-chain levels into the same vertical span as 3 normal levels.
+    chain_step = (normal_step * 3.0) / 9.0
+
+    def assign_y(nid: int) -> None:
+        base = y_metric[nid]
+        for kid in by_id[nid].children:
+            child = by_id[kid]
+            # Keep the rightmost chain visually compact to show deeper lineage.
+            step = chain_step if child.rightmost_chain else normal_step
+            y_metric[kid] = base + step
+            assign_y(kid)
+
+    assign_y(root_id)
+
     min_x = min(x_pos.values()) if x_pos else 0.0
     max_x = max(x_pos.values()) if x_pos else 1.0
     span = max(1.0, max_x - min_x)
 
     out: Dict[int, Tuple[float, float, float]] = {}
     for nid, node in by_id.items():
-        # Wider span keeps larger node cards readable at deeper levels.
-        xn = ((x_pos[nid] - min_x) / span) * 13.0 - 6.5
-        yn = 2.7 - node.depth * 1.8
+        xn = (((x_pos[nid] - min_x) / span) - 0.5) * total_width
+        yn = top_y - y_metric.get(nid, node.depth * 1.8)
         out[nid] = (xn, yn, 0.0)
     return out
 
@@ -456,24 +674,44 @@ class TriplicationDFSTreeSeparate(Scene):
         )
 
         try:
-            title = Text(
-                "DFS Tree Build (separate animation)",
-                font_size=30,
-                color=WHITE,
-                font=LABEL_FONT,
-            ).to_edge(UP, buff=0.25)
-            self._slice_play(FadeIn(title), run_time=0.4 * TIME_SCALE)
-
-            left = self.animate_single_tree(
-                problem, enable_pruning=True, title_text="With modulo-5 pruning")
-            self._slice_play(FadeOut(left), run_time=0.35 * TIME_SCALE)
-
-            right = self.animate_single_tree(
-                problem, enable_pruning=False, title_text="Without modulo-5 pruning")
-            self._slice_play(FadeOut(right), FadeOut(title), run_time=0.4 * TIME_SCALE)
+            tree = self.animate_single_tree(
+                problem, enable_pruning=True, title_text="Pruned nodes are dark red")
+            self._slice_play(FadeOut(tree), run_time=0.4 * TIME_SCALE)
             self._slice_wait(0.2 * TIME_SCALE)
         except SliceComplete:
             return
+
+    def make_counter_line(
+        self,
+        label: str,
+        step: int,
+        elapsed_ms: float,
+        label_col_x: float,
+        time_col_x: float,
+        step_col_x: float,
+        ratio_col_x: float,
+    ) -> Text:
+        step_safe = max(1, step)
+        per_step = elapsed_ms / step_safe
+        row_y = 0.0
+
+        label_text = Text(label, font_size=20, color=WHITE, font=LABEL_FONT)
+        label_text.move_to((label_col_x, row_y, 0), aligned_edge=LEFT)
+
+        time_text = Text(f"{elapsed_ms:.1f} ms", font_size=20, color=WHITE, font=LABEL_FONT)
+        time_text.move_to((time_col_x, row_y, 0), aligned_edge=LEFT)
+
+        step_text = Text(f"{step}", font_size=20, color=WHITE, font=LABEL_FONT)
+        step_text.move_to((step_col_x, row_y, 0), aligned_edge=LEFT)
+
+        ratio_text = Text(f"{per_step:.3f} ms", font_size=20, color=WHITE, font=LABEL_FONT)
+        ratio_text.move_to((ratio_col_x, row_y, 0), aligned_edge=LEFT)
+
+        return VGroup(label_text, time_text, step_text, ratio_text)
+
+    def elapsed_at_step(self, trace: TraceResult, step: int) -> float:
+        s = max(0, min(step, len(trace.step_elapsed_ms) - 1))
+        return trace.step_elapsed_ms[s]
 
     def animate_single_tree(self, problem: Problem, enable_pruning: bool, title_text: str) -> VGroup:
         trace = build_trace(
@@ -483,86 +721,156 @@ class TriplicationDFSTreeSeparate(Scene):
             max_display_children=3,
             max_nodes=1_500_000,
         )
-        positions = compute_layout(trace.nodes)
+        vanilla_trace = build_trace(
+            problem=problem,
+            enable_pruning=False,
+            max_display_depth=3,
+            max_display_children=3,
+            max_nodes=1_500_000,
+        )
+        if enable_pruning:
+            trace = add_pruned_descendants_from_unpruned(
+                pruned_trace=trace,
+                unpruned_trace=vanilla_trace,
+                max_display_depth=3,
+                max_display_children=3,
+            )
+        frame_w = float(self.camera.frame_width)
+        frame_h = float(self.camera.frame_height)
+        positions = compute_layout(
+            trace.nodes,
+            total_width=frame_w * 0.82,
+            top_y=(frame_h * 0.5) - 2.0,
+        )
         mask_set = set(problem.mask_cells)
 
-        subtitle = Text(
-            title_text,
-            font_size=24,
-            color=WHITE,
-            font=LABEL_FONT,
-        ).next_to(
-            self.mobjects[0], DOWN, buff=0.2
+        top = (frame_h * 0.5) - 0.25
+        header_y = top
+        row1_y = top - 0.50
+        row2_y = top - 1.00
+        left = -(frame_w * 0.5) + 0.35
+        label_col_x = left
+        time_col_x = left + frame_w * 0.18
+        step_col_x = left + frame_w * 0.43
+        ratio_col_x = left + frame_w * 0.60
+
+        header_label = Text("", font_size=20, color=WHITE, font=LABEL_FONT)
+        header_label.move_to((label_col_x, header_y, 0), aligned_edge=LEFT)
+        header_time = Text("time-spent", font_size=20, color=WHITE, font=LABEL_FONT)
+        header_time.move_to((time_col_x, header_y, 0), aligned_edge=LEFT)
+        header_step = Text("step-nr", font_size=20, color=WHITE, font=LABEL_FONT)
+        header_step.move_to((step_col_x, header_y, 0), aligned_edge=LEFT)
+        header_ratio = Text("time/step:", font_size=20, color=WHITE, font=LABEL_FONT)
+        header_ratio.move_to((ratio_col_x, header_y, 0), aligned_edge=LEFT)
+        header = VGroup(header_label, header_time, header_step, header_ratio)
+
+        vanilla_line = self.make_counter_line(
+            "vanilla", 0, 0.0, label_col_x, time_col_x, step_col_x, ratio_col_x)
+        vanilla_line.shift((0, row1_y, 0))
+        mod_line = self.make_counter_line(
+            "mod-5", 0, 0.0, label_col_x, time_col_x, step_col_x, ratio_col_x)
+        mod_line.shift((0, row2_y, 0))
+        self._slice_play(
+            FadeIn(header),
+            FadeIn(vanilla_line),
+            FadeIn(mod_line),
+            run_time=0.25 * TIME_SCALE,
         )
-        self._slice_play(FadeIn(subtitle), run_time=0.25 * TIME_SCALE)
 
         node_groups: Dict[int, VGroup] = {}
-        node_status_texts: Dict[int, Text] = {}
-        edge_map: Dict[int, Line] = {}
-
-        layer = VGroup(subtitle)
+        layer = VGroup(header, vanilla_line, mod_line)
+        shown_mod_step = 0
 
         for event in trace.events:
+            if event.kind != "enter":
+                continue
             node = trace.nodes[event.node_id]
-            if event.kind == "enter":
-                card, status_text = self.build_node_card(
-                    rows=problem.rows,
-                    cols=problem.cols,
-                    mask_set=mask_set,
-                    board=node.board,
+            card = self.build_node_card(
+                rows=problem.rows,
+                cols=problem.cols,
+                mask_set=mask_set,
+                board=node.board,
+                pruned=node.pruned,
+                counterfactual=node.counterfactual,
+            )
+            card.move_to(positions[event.node_id])
+            node_groups[event.node_id] = card
+
+            # Keep the HUD monotonic even for grafted/counterfactual nodes.
+            mod_step = max(shown_mod_step + 1, node.step_at_enter)
+            mod_step = min(mod_step, trace.total_steps)
+            mod_elapsed = self.elapsed_at_step(trace, mod_step)
+            progress = mod_step / max(1, trace.total_steps)
+            vanilla_step = int(round(progress * vanilla_trace.total_steps))
+            vanilla_elapsed = self.elapsed_at_step(vanilla_trace, vanilla_step)
+
+            vanilla_next = self.make_counter_line(
+                "vanilla",
+                vanilla_step,
+                vanilla_elapsed,
+                label_col_x,
+                time_col_x,
+                step_col_x,
+                ratio_col_x,
+            )
+            vanilla_next.shift((0, row1_y, 0))
+            mod_next = self.make_counter_line(
+                "mod-5",
+                mod_step,
+                mod_elapsed,
+                label_col_x,
+                time_col_x,
+                step_col_x,
+                ratio_col_x,
+            )
+            mod_next.shift((0, row2_y, 0))
+
+            # In-place updates are reliable for per-step HUD counters.
+            vanilla_line.become(vanilla_next)
+            mod_line.become(mod_next)
+
+            animations = [
+                FadeIn(card),
+            ]
+            if node.parent_id is not None:
+                parent = node_groups[node.parent_id]
+                edge = Line(
+                    parent.get_bottom(),
+                    card.get_top(),
+                    stroke_width=1.1,
+                    color=DARK_GRAY,
                 )
-                card.move_to(positions[event.node_id])
-                node_groups[event.node_id] = card
-                node_status_texts[event.node_id] = status_text
+                animations.insert(0, FadeIn(edge))
+                layer.add(edge)
 
-                animations = [FadeIn(card)]
-                if node.parent_id is not None:
-                    parent = node_groups[node.parent_id]
-                    edge = Line(
-                        parent.get_bottom(),
-                        card.get_top(),
-                        stroke_width=1.1,
-                        color=DARK_GRAY,
-                    )
-                    edge_map[event.node_id] = edge
-                    animations.insert(0, FadeIn(edge))
-                    layer.add(edge)
+            self._slice_play(*animations, run_time=0.13 * TIME_SCALE)
+            layer.add(card)
+            shown_mod_step = mod_step
 
-                self._slice_play(*animations, run_time=0.13 * TIME_SCALE)
-                layer.add(card)
-
-            elif event.kind == "exit":
-                status = node_status_texts[event.node_id]
-                ms_value = 0.0 if node.elapsed_ms is None else node.elapsed_ms
-                new_status = Text(
-                    f"{ms_value:.1f} ms",
-                    font_size=13,
-                    color=WHITE,
-                    font=LABEL_FONT,
-                )
-                new_status.move_to(status)
-
-                parent = node_groups[event.node_id]
-                sub_text_old = parent[2]
-                sub_text_new = Text(
-                    f"subnodes: {node.explored_subnodes}",
-                    font_size=12,
-                    color=WHITE,
-                    font=LABEL_FONT,
-                )
-                sub_text_new.move_to(sub_text_old)
-
-                self._slice_play(
-                    ReplacementTransform(status, new_status),
-                    ReplacementTransform(sub_text_old, sub_text_new),
-                    run_time=0.08 * TIME_SCALE,
-                )
-                node_status_texts[event.node_id] = new_status
-                parent.submobjects[1] = new_status
-                parent.submobjects[2] = sub_text_new
-
+        # Snap counters to final totals after the build.
+        vanilla_final = self.make_counter_line(
+            "vanilla",
+            vanilla_trace.total_steps,
+            vanilla_trace.total_elapsed_ms,
+            label_col_x,
+            time_col_x,
+            step_col_x,
+            ratio_col_x,
+        )
+        vanilla_final.shift((0, row1_y, 0))
+        mod_final = self.make_counter_line(
+            "mod-5",
+            trace.total_steps,
+            trace.total_elapsed_ms,
+            label_col_x,
+            time_col_x,
+            step_col_x,
+            ratio_col_x,
+        )
+        mod_final.shift((0, row2_y, 0))
+        vanilla_line.become(vanilla_final)
+        mod_line.become(mod_final)
         self._slice_wait(0.6 * TIME_SCALE)
-        self._slice_play(FadeOut(subtitle), run_time=0.2 * TIME_SCALE)
         return layer
 
     def build_node_card(
@@ -571,7 +879,9 @@ class TriplicationDFSTreeSeparate(Scene):
         cols: int,
         mask_set: Set[Coord],
         board: Dict[Coord, PieceName],
-    ) -> Tuple[VGroup, Text]:
+        pruned: bool,
+        counterfactual: bool,
+    ) -> VGroup:
         def piece_outline(cells: Sequence[Coord], cell_size: float) -> VGroup:
             occupied = set(cells)
             lines = VGroup()
@@ -592,15 +902,24 @@ class TriplicationDFSTreeSeparate(Scene):
 
         board_group = VGroup()
         cell = 0.05
+        if pruned:
+            mask_color = "#4a2f36"
+            outside_color = "#241a1d"
+        elif counterfactual:
+            mask_color = "#3e3236"
+            outside_color = "#211a1d"
+        else:
+            mask_color = "#2e3445"
+            outside_color = "#171a22"
 
         for r in range(rows):
             for c in range(cols):
                 rc = (r, c)
                 if rc in mask_set:
-                    fill = "#2e3445"
+                    fill = mask_color
                     opacity = 0.8
                 else:
-                    fill = "#171a22"
+                    fill = outside_color
                     opacity = 0.25
 
                 sq = Square(
@@ -631,22 +950,4 @@ class TriplicationDFSTreeSeparate(Scene):
                 fill_group.add(sq)
             board_group.add(fill_group)
             board_group.add(piece_outline(cells, cell))
-
-        status = Text(
-            "pending",
-            font_size=13,
-            color=WHITE,
-            font=LABEL_FONT,
-        )
-        subnodes = Text(
-            "subnodes: 0",
-            font_size=12,
-            color=WHITE,
-            font=LABEL_FONT,
-        )
-
-        status.next_to(board_group, DOWN, buff=0.05)
-        subnodes.next_to(status, DOWN, buff=0.03)
-
-        card = VGroup(board_group, status, subnodes)
-        return card, status
+        return board_group
