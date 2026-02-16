@@ -10,7 +10,11 @@
   export let rows = BOARD_ROWS;
   export let cols = BOARD_COLS;
 
-  const dispatch = createEventDispatcher<{ cellhover: { row: number; col: number } | null; cellclick: { row: number; col: number } }>();
+  const dispatch = createEventDispatcher<{
+    cellhover: { row: number; col: number } | null;
+    cellclick: { row: number; col: number };
+    celldrop: { row: number; col: number } | null;
+  }>();
 
   let canvas: HTMLCanvasElement;
   let gl: WebGLRenderingContext | null = null;
@@ -20,6 +24,7 @@
   let buffer: WebGLBuffer | null = null;
   let raf = 0;
   let resizeObserver: ResizeObserver | null = null;
+  let activePointerId: number | null = null;
 
   function hexToRgba(hex: string, alpha = 1): [number, number, number, number] {
     const value = hex.replace('#', '');
@@ -285,8 +290,32 @@
     if (!cell) {
       return;
     }
+    activePointerId = event.pointerId;
+    canvas.setPointerCapture(event.pointerId);
     dispatch('cellhover', cell);
     dispatch('cellclick', cell);
+  }
+
+  function onPointerUp(event: PointerEvent): void {
+    if (!interactive || activePointerId !== event.pointerId) {
+      return;
+    }
+    activePointerId = null;
+    if (canvas.hasPointerCapture(event.pointerId)) {
+      canvas.releasePointerCapture(event.pointerId);
+    }
+    dispatch('celldrop', pointerToCell(event));
+  }
+
+  function onPointerCancel(event: PointerEvent): void {
+    if (activePointerId !== event.pointerId) {
+      return;
+    }
+    activePointerId = null;
+    if (canvas.hasPointerCapture(event.pointerId)) {
+      canvas.releasePointerCapture(event.pointerId);
+    }
+    dispatch('celldrop', null);
   }
 
   function resizeCanvas(): void {
@@ -308,6 +337,7 @@
   onDestroy(() => {
     cancelAnimationFrame(raf);
     resizeObserver?.disconnect();
+    activePointerId = null;
   });
 
   $: {
@@ -324,6 +354,8 @@
   bind:this={canvas}
   class:interactive
   on:pointerdown={onPointerDown}
+  on:pointerup={onPointerUp}
+  on:pointercancel={onPointerCancel}
   on:pointermove={onMove}
   on:pointerleave={onLeave}
 />

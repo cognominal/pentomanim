@@ -268,6 +268,10 @@
     };
   }
 
+  function isOccupiedCell(placementsSnapshot: Placement[], row: number, col: number): boolean {
+    return placementsSnapshot.some((p) => p.cells.some(([r, c]) => r === row && c === col));
+  }
+
   function removePieceAt(row: number, col: number): boolean {
     if (isAnimating) {
       return false;
@@ -300,6 +304,28 @@
     if (removePieceAt(row, col)) {
       return;
     }
+    const candidate = placementAtCell(row, col);
+    if (!candidate) {
+      return;
+    }
+    commitPlacement(candidate);
+  }
+
+  function onBoardDrop(event: CustomEvent<{ row: number; col: number } | null>): void {
+    if (isAnimating || !event.detail) {
+      return;
+    }
+    const [row, col] = fromDisplayCell(
+      event.detail.row,
+      event.detail.col,
+      boardRows,
+      rectangleBoardRotatedView,
+    );
+    if (isOccupiedCell(visiblePlacements, row, col)) {
+      hover = null;
+      return;
+    }
+    hover = { row, col };
     const candidate = placementAtCell(row, col);
     if (!candidate) {
       return;
@@ -502,7 +528,7 @@
       boardRows,
       rectangleBoardRotatedView,
     );
-    hover = { row, col };
+    hover = isOccupiedCell(visiblePlacements, row, col) ? null : { row, col };
   }
 
   function sliderChanged(value: number): void {
@@ -649,7 +675,11 @@
     if (tripIsAnimating) {
       return;
     }
-    tripHover = event.detail;
+    if (!event.detail) {
+      tripHover = null;
+      return;
+    }
+    tripHover = isOccupiedCell(tripVisiblePlacements, event.detail.row, event.detail.col) ? null : event.detail;
   }
 
   function onTripBoardClick(event: CustomEvent<{ row: number; col: number }>): void {
@@ -661,6 +691,22 @@
     if (removeTripPieceAt(row, col)) {
       return;
     }
+    if (!tripSelectedPiece || !tripTransformed) {
+      return;
+    }
+    commitTripPlacement({ name: tripSelectedPiece, cells: placeAtAnchor(tripTransformed, row, col) });
+  }
+
+  function onTripBoardDrop(event: CustomEvent<{ row: number; col: number } | null>): void {
+    if (tripIsAnimating || !triplicationProblem || !event.detail) {
+      return;
+    }
+    const { row, col } = event.detail;
+    if (isOccupiedCell(tripVisiblePlacements, row, col)) {
+      tripHover = null;
+      return;
+    }
+    tripHover = { row, col };
     if (!tripSelectedPiece || !tripTransformed) {
       return;
     }
@@ -1038,9 +1084,10 @@
             }
           : null}
         interactive={!isAnimating}
-        on:cellhover={onBoardHover}
-        on:cellclick={onBoardClick}
-      />
+          on:cellhover={onBoardHover}
+          on:cellclick={onBoardClick}
+          on:celldrop={onBoardDrop}
+        />
     </div>
 
     <div class="slider-row">
@@ -1192,6 +1239,7 @@
           interactive={!tripIsAnimating}
           on:cellhover={onTripBoardHover}
           on:cellclick={onTripBoardClick}
+          on:celldrop={onTripBoardDrop}
         />
       </div>
 
