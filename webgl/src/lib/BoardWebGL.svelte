@@ -5,6 +5,8 @@
 
   export let placements: Placement[] = [];
   export let ghost: { name: PieceName; cells: [number, number][]; valid: boolean } | null = null;
+  export let settleOutlineCells: [number, number][] = [];
+  export let floatingPlacement: { name: PieceName; cells: [number, number][] } | null = null;
   export let maskCells: [number, number][] = [];
   export let interactive = true;
   export let rows = BOARD_ROWS;
@@ -12,8 +14,10 @@
 
   const dispatch = createEventDispatcher<{
     cellhover: { row: number; col: number } | null;
-    cellclick: { row: number; col: number };
+    cellclick: { row: number; col: number; x: number; y: number };
     celldrop: { row: number; col: number } | null;
+    dragstate: { active: boolean };
+    pointermove: { row: number; col: number } | null;
   }>();
 
   let canvas: HTMLCanvasElement;
@@ -25,6 +29,43 @@
   let raf = 0;
   let resizeObserver: ResizeObserver | null = null;
   let activePointerId: number | null = null;
+  let globalPointerListenersAttached = false;
+
+  function attachGlobalPointerListeners(): void {
+    if (globalPointerListenersAttached) {
+      return;
+    }
+    window.addEventListener('pointerup', onPointerUp);
+    window.addEventListener('pointercancel', onPointerCancel);
+    globalPointerListenersAttached = true;
+  }
+
+  function detachGlobalPointerListeners(): void {
+    if (!globalPointerListenersAttached) {
+      return;
+    }
+    window.removeEventListener('pointerup', onPointerUp);
+    window.removeEventListener('pointercancel', onPointerCancel);
+    globalPointerListenersAttached = false;
+  }
+
+  function trySetPointerCapture(pointerId: number): void {
+    try {
+      canvas.setPointerCapture(pointerId);
+    } catch {
+      // Ignore synthetic/cross-device capture errors; drag can still proceed.
+    }
+  }
+
+  function tryReleasePointerCapture(pointerId: number): void {
+    try {
+      if (canvas.hasPointerCapture(pointerId)) {
+        canvas.releasePointerCapture(pointerId);
+      }
+    } catch {
+      // Ignore synthetic/cross-device capture errors; finalize drag anyway.
+    }
+  }
 
   function hexToRgba(hex: string, alpha = 1): [number, number, number, number] {
     const value = hex.replace('#', '');
@@ -121,37 +162,10 @@
     if (!gl || !colorLoc || !buffer) {
       return;
     }
-    const lineColor: [number, number, number, number] = [0.16, 0.18, 0.25, 1];
-
     for (let r = 0; r < rows; r += 1) {
       for (let c = 0; c < cols; c += 1) {
         drawBatch([[r, c]], [0.05, 0.06, 0.1, 1]);
       }
-    }
-
-    const thicknessR = Math.max(0.01, 0.06 / rows);
-    const thicknessC = Math.max(0.01, 0.06 / cols);
-
-    for (let r = 0; r <= rows; r += 1) {
-      const y = 1 - (2 * r) / rows;
-      const yTop = y + thicknessR;
-      const yBottom = y - thicknessR;
-      const verts = new Float32Array([-1, yTop, 1, yTop, -1, yBottom, 1, yTop, 1, yBottom, -1, yBottom]);
-      gl.uniform4f(colorLoc, lineColor[0], lineColor[1], lineColor[2], lineColor[3]);
-      gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
-      gl.bufferData(gl.ARRAY_BUFFER, verts, gl.STREAM_DRAW);
-      gl.drawArrays(gl.TRIANGLES, 0, 6);
-    }
-
-    for (let c = 0; c <= cols; c += 1) {
-      const x = -1 + (2 * c) / cols;
-      const xL = x - thicknessC;
-      const xR = x + thicknessC;
-      const verts = new Float32Array([xL, 1, xR, 1, xL, -1, xR, 1, xR, -1, xL, -1]);
-      gl.uniform4f(colorLoc, lineColor[0], lineColor[1], lineColor[2], lineColor[3]);
-      gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
-      gl.bufferData(gl.ARRAY_BUFFER, verts, gl.STREAM_DRAW);
-      gl.drawArrays(gl.TRIANGLES, 0, 6);
     }
   }
 
@@ -230,6 +244,42 @@
     gl.drawArrays(gl.TRIANGLES, 0, vertices.length / 2);
   }
 
+  function drawCellsOutline(
+    cells: [number, number][],
+    color: [number, number, number, number],
+  ): void {
+    if (!gl || !colorLoc || !buffer || cells.length === 0) {
+      return;
+    }
+    const occupied = new Set(cells.map(([r, c]) => `${r},${c}`));
+    const thicknessH = Math.max(0.005, 0.02 / rows);
+    const thicknessV = Math.max(0.005, 0.02 / cols);
+    const vertices: number[] = [];
+
+    for (const [r, c] of cells) {
+      if (!occupied.has(`${r - 1},${c}`)) {
+        addHSegment(vertices, r, c, thicknessH);
+      }
+      if (!occupied.has(`${r + 1},${c}`)) {
+        addHSegment(vertices, r + 1, c, thicknessH);
+      }
+      if (!occupied.has(`${r},${c - 1}`)) {
+        addVSegment(vertices, r, c, thicknessV);
+      }
+      if (!occupied.has(`${r},${c + 1}`)) {
+        addVSegment(vertices, r, c + 1, thicknessV);
+      }
+    }
+
+    if (vertices.length === 0) {
+      return;
+    }
+    gl.uniform4f(colorLoc, color[0], color[1], color[2], color[3]);
+    gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STREAM_DRAW);
+    gl.drawArrays(gl.TRIANGLES, 0, vertices.length / 2);
+  }
+
   function draw(): void {
     if (!gl || !program || !buffer) {
       return;
@@ -246,7 +296,11 @@
     for (const p of placements) {
       drawBatch(p.cells, hexToRgba(PIECE_COLORS[p.name], 0.9));
     }
+    if (floatingPlacement) {
+      drawBatch(floatingPlacement.cells, hexToRgba(PIECE_COLORS[floatingPlacement.name], 0.9));
+    }
     drawPieceBoundaries();
+    drawCellsOutline(settleOutlineCells, [0.7, 0.72, 0.76, 0.48]);
     if (ghost) {
       const tint = ghost.valid ? '#9ef01a' : '#ef233c';
       drawBatch(ghost.cells, hexToRgba(tint, 0.32));
@@ -268,10 +322,32 @@
     return { row, col };
   }
 
+  function pointerToBoardPos(
+    event: PointerEvent,
+    clampToBoard: boolean,
+  ): { row: number; col: number } | null {
+    const rect = canvas.getBoundingClientRect();
+    let x = event.clientX - rect.left;
+    let y = event.clientY - rect.top;
+    if (clampToBoard) {
+      x = Math.max(0, Math.min(rect.width, x));
+      y = Math.max(0, Math.min(rect.height, y));
+    }
+    if (x < 0 || y < 0 || x > rect.width || y > rect.height) {
+      return null;
+    }
+    return {
+      row: (y / rect.height) * rows,
+      col: (x / rect.width) * cols,
+    };
+  }
+
   function onMove(event: PointerEvent): void {
     if (!interactive) {
       return;
     }
+    const clamp = activePointerId !== null;
+    dispatch('pointermove', pointerToBoardPos(event, clamp));
     dispatch('cellhover', pointerToCell(event));
   }
 
@@ -291,30 +367,45 @@
       return;
     }
     activePointerId = event.pointerId;
-    canvas.setPointerCapture(event.pointerId);
+    trySetPointerCapture(event.pointerId);
+    attachGlobalPointerListeners();
+    dispatch('dragstate', { active: true });
+    dispatch('pointermove', pointerToBoardPos(event, true));
     dispatch('cellhover', cell);
-    dispatch('cellclick', cell);
+    dispatch('cellclick', { ...cell, x: event.clientX, y: event.clientY });
   }
 
   function onPointerUp(event: PointerEvent): void {
-    if (!interactive || activePointerId !== event.pointerId) {
+    if (!interactive || activePointerId === null) {
       return;
     }
-    activePointerId = null;
-    if (canvas.hasPointerCapture(event.pointerId)) {
-      canvas.releasePointerCapture(event.pointerId);
+    const matchesPointer = event.pointerId === activePointerId || event.pointerId === 0;
+    if (!matchesPointer) {
+      return;
     }
+    const pointerId = activePointerId;
+    activePointerId = null;
+    detachGlobalPointerListeners();
+    tryReleasePointerCapture(pointerId);
+    dispatch('dragstate', { active: false });
+    dispatch('pointermove', pointerToBoardPos(event, true));
     dispatch('celldrop', pointerToCell(event));
   }
 
   function onPointerCancel(event: PointerEvent): void {
-    if (activePointerId !== event.pointerId) {
+    if (activePointerId === null) {
       return;
     }
-    activePointerId = null;
-    if (canvas.hasPointerCapture(event.pointerId)) {
-      canvas.releasePointerCapture(event.pointerId);
+    const matchesPointer = event.pointerId === activePointerId || event.pointerId === 0;
+    if (!matchesPointer) {
+      return;
     }
+    const pointerId = activePointerId;
+    activePointerId = null;
+    detachGlobalPointerListeners();
+    tryReleasePointerCapture(pointerId);
+    dispatch('dragstate', { active: false });
+    dispatch('pointermove', null);
     dispatch('celldrop', null);
   }
 
@@ -338,12 +429,15 @@
     cancelAnimationFrame(raf);
     resizeObserver?.disconnect();
     activePointerId = null;
+    detachGlobalPointerListeners();
   });
 
   $: {
     placements;
     ghost;
     maskCells;
+    settleOutlineCells;
+    floatingPlacement;
     rows;
     cols;
     scheduleDraw();
@@ -364,7 +458,7 @@
   canvas {
     width: 100%;
     height: 100%;
-    border-radius: 10px;
+    border-radius: 0;
     display: block;
     background: #05070f;
     touch-action: none;

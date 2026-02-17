@@ -36,6 +36,7 @@ async function runInvalidPrefixFlow(
   page: Page,
   placeCell: (p: Page, row: number, col: number) => Promise<void>,
   expectedIntro: string,
+  expectPrefixSlider: boolean,
 ) {
   await page.goto('/');
   await expect(page.getByRole('heading', { name: 'Rectangle Solver' })).toBeVisible();
@@ -51,19 +52,25 @@ async function runInvalidPrefixFlow(
 
   await expect(page.locator('header .status-row p')).toContainText('I placed. 0 solutions for this prefix.');
   await expect(page.getByRole('button', { name: 'Reset to the longest valid prefix' })).toBeVisible();
-  await expect(page.locator('input#fixed')).toHaveValue('2');
+  if (expectPrefixSlider) {
+    await expect(page.locator('input#fixed')).toHaveValue('2');
+  } else {
+    await expect(page.locator('input#fixed')).toHaveCount(0);
+  }
 
   await page.getByRole('button', { name: 'Reset to the longest valid prefix' }).click();
   await expect(page.locator('header .status-row p')).toContainText('Reset to longest valid prefix (1 pieces).');
-  await expect(page.locator('input#fixed')).toHaveValue('1');
+  if (expectPrefixSlider) {
+    await expect(page.locator('input#fixed')).toHaveValue('1');
+  }
 }
 
 test('click mode accepts placement then offers reset-to-prefix', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'click', 'This test runs in click project only.');
-  await runInvalidPrefixFlow(page, clickCell, 'Pick a piece and click the board to place it.');
+  await runInvalidPrefixFlow(page, clickCell, 'Pick a piece and click the board to place it.', true);
 });
 
 test('touch mode accepts placement then offers reset-to-prefix', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'touch', 'This test runs in touch project only.');
-  await runInvalidPrefixFlow(page, tapCell, 'Pick a piece and tap the board to place it.');
+  await runInvalidPrefixFlow(page, tapCell, 'Pick a piece and tap the board to place it.', false);
 });
