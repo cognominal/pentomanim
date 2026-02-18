@@ -38,6 +38,11 @@
     dy: number;
     active: boolean;
   };
+  type PickerDragState = {
+    pointerId: number;
+    pointerType: string;
+    piece: PieceName;
+  };
 
   const isTouchDevice =
     typeof window !== 'undefined' &&
@@ -92,6 +97,7 @@
   let rectangleStatusEl: HTMLParagraphElement | null = null;
   let tripStatusEl: HTMLParagraphElement | null = null;
   let solvedToggleEl: HTMLButtonElement | null = null;
+  let paneTabsEl: HTMLElement | null = null;
   let rectangleSolvedTransitionTimer: ReturnType<typeof setTimeout> | null = null;
   let tripSolvedTransitionTimer: ReturnType<typeof setTimeout> | null = null;
   let rectangleSolvedTransitioning = false;
@@ -102,6 +108,8 @@
   let solverCountRequestSeq = 0;
   let activeSolverCountRequestId = -1;
   let rectangleDragActive = false;
+  let rectangleDragPointerType: string | null = null;
+  let rectanglePickerDrag: PickerDragState | null = null;
   let tripDragActive = false;
   let rectangleDraggedPlacement: Placement | null = null;
   let tripDraggedPlacement: Placement | null = null;
@@ -123,6 +131,7 @@
   let rectangleGhostSnapTargetKey = '';
   let rectangleGhostSnapAnimSeq = 0;
   let showGhostSnapOutline = false;
+  let rectangleTouchOverlayStyle = '';
   let statusFlight: StatusFlight | null = null;
   let statusFlightSeq = 0;
   let statusFlightTimer: ReturnType<typeof setTimeout> | null = null;
@@ -148,11 +157,14 @@
     ? rectangleBasePlacements
     : visiblePlacements;
   $: rectangleDragOriginName = rectangleDraggedOriginPlacement?.name ?? null;
+  $: rectangleDragInFlight =
+    rectangleDragActive || rectanglePickerDrag !== null;
+  $: rectanglePickerDragActive = rectanglePickerDrag !== null;
   $: rectangleBasePlacements = rectangleDragOriginName
     ? visiblePlacements.filter((p) => p.name !== rectangleDragOriginName)
     : visiblePlacements;
   $: rectangleSettleOutline = (() => {
-    if (rectangleDraggedOriginPlacement || rectangleDragActive) {
+    if (rectangleDraggedOriginPlacement || rectangleDragInFlight) {
       if (rectangleDraggedPlacement !== null && rectangleDraggedPlacementValid) {
         return rectangleDraggedPlacement.cells.map(([r, c]) =>
           toDisplayCell(r, c, boardRows, rectangleBoardRotatedView),
@@ -190,7 +202,7 @@
     selectedPiece &&
     transformed &&
     rectangleHoverPointerPos &&
-    !rectangleDragActive &&
+    !rectangleDragInFlight &&
     !rectangleDraggedPlacement &&
     !rectangleSnapAnimating &&
     !rectangleDraggedOriginPlacement
@@ -225,7 +237,7 @@
     selectedPiece !== null &&
     transformed !== null &&
     rectangleHoverPointerPos !== null &&
-    !rectangleDragActive &&
+    !rectangleDragInFlight &&
     !rectangleDraggedPlacement &&
     !rectangleSnapAnimating &&
     !rectangleDraggedOriginPlacement
@@ -245,8 +257,33 @@
     ghostSnappedPlacement !== null &&
     ghostValid &&
     !ghostOverlapsPlacement &&
-    !rectangleDragActive &&
+    !rectangleDragInFlight &&
     !rectangleDraggedOriginPlacement;
+
+  $: rectangleTouchOverlayActive =
+    useTouchLayout &&
+    activePane === 'rectangle' &&
+    touchViewMode === 'solver' &&
+    rectangleDragInFlight &&
+    (rectangleDragPointerType === 'touch' ||
+      rectanglePickerDrag?.pointerType === 'touch');
+
+  $: {
+    rectangleTouchOverlayActive;
+    rectangleDisplayRows;
+    rectangleDisplayCols;
+    rectangleBoardRotatedView;
+    updateRectangleTouchOverlayStyle();
+  }
+
+  $: {
+    if (rectanglePickerDrag && rectangleHoverPointerPos && selectedPiece && transformed) {
+      setRectangleDragCandidateFromPointer(
+        rectangleHoverPointerPos.row,
+        rectangleHoverPointerPos.col,
+      );
+    }
+  }
 
   $: {
     setRectangleGhostSnapTarget(showGhostSnapOutline ? ghostSnappedPlacement.cells : []);
@@ -762,6 +799,161 @@
     }
   }
 
+  function rectangleBoardPosFromClient(
+    clientX: number,
+    clientY: number,
+    clampToBoard: boolean,
+  ): { row: number; col: number } | null {
+    if (!rectangleBoardWrapEl) {
+      return null;
+    }
+    const rect = rectangleBoardWrapEl.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) {
+      return null;
+    }
+    let x = clientX - rect.left;
+    let y = clientY - rect.top;
+    if (clampToBoard) {
+      x = Math.max(0, Math.min(rect.width, x));
+      y = Math.max(0, Math.min(rect.height, y));
+    }
+    if (x < 0 || y < 0 || x > rect.width || y > rect.height) {
+      return null;
+    }
+    const displayRow = (y / rect.height) * rectangleDisplayRows;
+    const displayCol = (x / rect.width) * rectangleDisplayCols;
+    const [row, col] = fromDisplayCell(
+      displayRow,
+      displayCol,
+      boardRows,
+      rectangleBoardRotatedView,
+    );
+    return { row, col };
+  }
+
+  function updateRectangleTouchOverlayStyle(): void {
+    if (!paneTabsEl || !rectangleBoardWrapEl) {
+      rectangleTouchOverlayStyle = '';
+      return;
+    }
+    const tabsRect = paneTabsEl.getBoundingClientRect();
+    const boardRect = rectangleBoardWrapEl.getBoundingClientRect();
+    const top = Math.ceil(tabsRect.bottom + 1);
+    const height = Math.max(0, Math.floor(boardRect.top - tabsRect.bottom - 2));
+    rectangleTouchOverlayStyle =
+      `top:${top}px;left:${Math.round(boardRect.left)}px;` +
+      `width:${Math.round(boardRect.width)}px;height:${height}px;`;
+  }
+
+  function applyRectanglePickerDragPointer(
+    clientX: number,
+    clientY: number,
+    clampToBoard: boolean,
+  ): void {
+    const boardPos = rectangleBoardPosFromClient(clientX, clientY, clampToBoard);
+    if (!boardPos) {
+      rectangleHoverPointerPos = null;
+      rectanglePointerOverBoard = false;
+      if (rectanglePickerDragActive) {
+        rectangleDraggedPlacement = null;
+        rectangleDraggedPlacementValid = false;
+      }
+      return;
+    }
+    rectanglePointerOverBoard = true;
+    rectangleHoverPointerPos = boardPos;
+    setRectangleDragCandidateFromPointer(boardPos.row, boardPos.col);
+    rectangleDragMoved = true;
+  }
+
+  function onPickerPointerMove(event: PointerEvent): void {
+    if (!rectanglePickerDrag || event.pointerId !== rectanglePickerDrag.pointerId) {
+      return;
+    }
+    event.preventDefault();
+    applyRectanglePickerDragPointer(event.clientX, event.clientY, true);
+  }
+
+  function finalizeRectanglePickerDrag(dropOnBoard: boolean): void {
+    if (!rectanglePickerDrag) {
+      return;
+    }
+    const dragged = rectanglePickerDrag;
+    if (!dropOnBoard || !rectangleDraggedPlacement || !rectangleDraggedPlacementValid) {
+      rectangleDragActive = false;
+      rectanglePickerDrag = null;
+      rectangleDragPointerType = null;
+      rectangleHoverPointerPos = null;
+      rectanglePointerOverBoard = false;
+      rectangleDraggedPlacement = null;
+      rectangleDraggedPlacementValid = false;
+      rectangleFloatingPlacement = null;
+      return;
+    }
+    const candidate = clonePlacements([rectangleDraggedPlacement])[0];
+    rectangleDragActive = false;
+    rectanglePickerDrag = null;
+    rectangleDragPointerType = null;
+    rectangleHoverPointerPos = null;
+    rectanglePointerOverBoard = false;
+    rectangleDraggedPlacement = null;
+    rectangleDraggedPlacementValid = false;
+    rectangleFloatingPlacement = null;
+    if (!commitPlacement(candidate)) {
+      status = `Cannot place ${dragged.piece} there.`;
+    }
+  }
+
+  function onPickerPointerUp(event: PointerEvent): void {
+    if (!rectanglePickerDrag || event.pointerId !== rectanglePickerDrag.pointerId) {
+      return;
+    }
+    event.preventDefault();
+    const boardPos = rectangleBoardPosFromClient(event.clientX, event.clientY, false);
+    if (boardPos) {
+      applyRectanglePickerDragPointer(event.clientX, event.clientY, true);
+    }
+    finalizeRectanglePickerDrag(!!boardPos);
+  }
+
+  function onPickerPointerCancel(event: PointerEvent): void {
+    if (!rectanglePickerDrag || event.pointerId !== rectanglePickerDrag.pointerId) {
+      return;
+    }
+    event.preventDefault();
+    finalizeRectanglePickerDrag(false);
+  }
+
+  function startPickerDrag(event: PointerEvent, piece: PieceName): void {
+    const pointerType = event.pointerType || 'touch';
+    if (isRectangleLocked || pointerType !== 'touch') {
+      return;
+    }
+    if (selectedPiece !== piece) {
+      selectedPiece = piece;
+      resetPose();
+    }
+    rectanglePickerDrag = {
+      pointerId: event.pointerId,
+      pointerType,
+      piece,
+    };
+    rectangleDragPointerType = pointerType;
+    rectangleDragActive = true;
+    rectangleDraggedOriginPlacement = null;
+    rectangleDraggedOriginKey = null;
+    rectangleDragStartCells = null;
+    rectangleDragStartPointer = null;
+    rectangleDragMoved = false;
+    rectangleDraggedPlacement = null;
+    rectangleDraggedPlacementValid = false;
+    rectangleFloatingPlacement = null;
+    hover = null;
+    rectangleHoverPointerPos = null;
+    rectanglePointerOverBoard = false;
+    applyRectanglePickerDragPointer(event.clientX, event.clientY, true);
+  }
+
   function clearRectangleDragState(): void {
     rectangleDraggedPlacement = null;
     rectangleDraggedOriginPlacement = null;
@@ -774,6 +966,8 @@
     rectangleDragStartPointer = null;
     rectangleDragStartCells = null;
     rectanglePointerOverBoard = false;
+    rectangleDragPointerType = null;
+    rectanglePickerDrag = null;
     clearRectangleGhostSnapAnimation();
     rectangleGhostSnapOutline = [];
     rectangleGhostSnapTargetKey = '';
@@ -864,12 +1058,12 @@
         [r + pointerRow, c + pointerCol] as [number, number],
       );
       rectangleFloatingPlacement = { name: selectedPiece, cells: floatCells };
-      const snappedRow = Math.round(pointerRow);
-      const snappedCol = Math.round(pointerCol);
-      candidate = {
-        name: selectedPiece,
-        cells: placeAtAnchor(transformed, snappedRow, snappedCol),
-      };
+      candidate = snappedPlacementAtPointerBarycenter(
+        selectedPiece,
+        transformed,
+        pointerRow,
+        pointerCol,
+      );
     }
 
     const candidateKey = solutionKey([{ name: candidate.name, cells: candidate.cells }]);
@@ -1067,8 +1261,11 @@
     startRectangleSnapFinalize();
   }
 
-  function onRectangleDragState(event: CustomEvent<{ active: boolean }>): void {
+  function onRectangleDragState(
+    event: CustomEvent<{ active: boolean; pointerType: string | null }>,
+  ): void {
     rectangleDragActive = event.detail.active;
+    rectangleDragPointerType = event.detail.pointerType;
     if (!rectangleDragActive) {
       rectangleHoverPointerPos = null;
       setRectangleGhostSnapTarget([]);
@@ -1791,6 +1988,13 @@
     statusFlight = null;
     solverCountWorker?.terminate();
     solverCountWorker = null;
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('pointermove', onPickerPointerMove);
+      window.removeEventListener('pointerup', onPickerPointerUp);
+      window.removeEventListener('pointercancel', onPickerPointerCancel);
+      window.removeEventListener('resize', updateRectangleTouchOverlayStyle);
+      window.removeEventListener('scroll', updateRectangleTouchOverlayStyle, true);
+    }
   });
 
   onMount(() => {
@@ -1804,6 +2008,12 @@
     };
     updateLayoutMode();
     window.addEventListener('resize', updateLayoutMode);
+    window.addEventListener('pointermove', onPickerPointerMove, { passive: false });
+    window.addEventListener('pointerup', onPickerPointerUp, { passive: false });
+    window.addEventListener('pointercancel', onPickerPointerCancel, { passive: false });
+    window.addEventListener('resize', updateRectangleTouchOverlayStyle);
+    window.addEventListener('scroll', updateRectangleTouchOverlayStyle, true);
+    updateRectangleTouchOverlayStyle();
 
     solverCountWorker = new Worker(new URL('./lib/solverCount.worker.ts', import.meta.url), { type: 'module' });
     solverCountWorker.onmessage = (event: MessageEvent<SolverCountResponse>) => {
@@ -1828,6 +2038,11 @@
 
     return () => {
       window.removeEventListener('resize', updateLayoutMode);
+      window.removeEventListener('pointermove', onPickerPointerMove);
+      window.removeEventListener('pointerup', onPickerPointerUp);
+      window.removeEventListener('pointercancel', onPickerPointerCancel);
+      window.removeEventListener('resize', updateRectangleTouchOverlayStyle);
+      window.removeEventListener('scroll', updateRectangleTouchOverlayStyle, true);
     };
   });
 
@@ -1879,7 +2094,7 @@
     </div>
   {/if}
 
-  <nav class="pane pane-tabs">
+  <nav class="pane pane-tabs" bind:this={paneTabsEl}>
     <button
       class="tab-btn"
       class:active={activePane === 'rectangle'}
@@ -1952,6 +2167,7 @@
           class:selected={selectedPiece === name}
           class:used={disabled}
           on:click={() => selectPiece(name)}
+          on:pointerdown={(event) => startPickerDrag(event, name)}
           disabled={disabled || isRectangleLocked}
           aria-label={`Select ${name}`}
         >
@@ -2050,7 +2266,7 @@
         placements={toDisplayPlacements(rectangleRenderPlacements, boardRows, rectangleBoardRotatedView)}
         settleOutlineCells={rectangleSettleOutline}
         floatingPlacement={rectangleFloatingPlacement &&
-        !(rectangleDragActive &&
+        !(rectangleDragInFlight &&
           rectangleDraggedOriginPlacement &&
           !rectangleDraggedPlacementValid)
           ? {
@@ -2060,7 +2276,7 @@
               ),
             }
           : null}
-        ghost={rectangleDragActive &&
+        ghost={rectangleDragInFlight &&
         rectangleDraggedOriginPlacement &&
         rectangleFloatingPlacement &&
         !rectangleDraggedPlacementValid
@@ -2088,6 +2304,52 @@
           on:pointermove={onRectanglePointerMove}
         />
     </div>
+    {#if rectangleTouchOverlayActive}
+      <div class="touch-board-overlay" style={rectangleTouchOverlayStyle}>
+        <BoardWebGL
+          rows={rectangleDisplayRows}
+          cols={rectangleDisplayCols}
+          placements={toDisplayPlacements(
+            rectangleRenderPlacements,
+            boardRows,
+            rectangleBoardRotatedView,
+          )}
+          settleOutlineCells={rectangleSettleOutline}
+          floatingPlacement={rectangleFloatingPlacement &&
+          !(rectangleDragInFlight &&
+            rectangleDraggedOriginPlacement &&
+            !rectangleDraggedPlacementValid)
+            ? {
+                name: rectangleFloatingPlacement.name,
+                cells: rectangleFloatingPlacement.cells.map(([r, c]) =>
+                  toDisplayCell(r, c, boardRows, rectangleBoardRotatedView),
+                ),
+              }
+            : null}
+          ghost={rectangleDragInFlight &&
+          rectangleDraggedOriginPlacement &&
+          rectangleFloatingPlacement &&
+          !rectangleDraggedPlacementValid
+            ? {
+                name: rectangleFloatingPlacement.name,
+                cells: rectangleFloatingPlacement.cells.map(([r, c]) =>
+                  toDisplayCell(r, c, boardRows, rectangleBoardRotatedView),
+                ),
+                valid: false,
+              }
+            : ghostPlacement && !ghostOverlapsPlacement
+              ? {
+                  name: ghostPlacement.name,
+                  cells: ghostPlacement.cells.map(([r, c]) =>
+                    toDisplayCell(r, c, boardRows, rectangleBoardRotatedView),
+                  ),
+                  valid: ghostValid,
+                }
+              : null}
+          interactive={false}
+        />
+      </div>
+    {/if}
 
     <div class="slider-row">
       <label for="fixed">Already placed: {prefixCount}</label>

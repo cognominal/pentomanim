@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { PIECES, placeAtAnchor } from '../src/lib/pentomino';
+import { PIECES, cellsForPose, placeAtAnchor } from '../src/lib/pentomino';
 
 const BOARD_ROWS = 5;
 const BOARD_COLS = 12;
@@ -97,6 +97,71 @@ async function dragCellWithPointerEvents(
   });
 }
 
+async function dragFromPickerToBoardTouch(
+  page: Page,
+  piece: string,
+  toCell: [number, number],
+): Promise<void> {
+  const picker = page.getByRole('button', { name: `Select ${piece}` }).first();
+  await expect(picker).toBeVisible();
+  const pickerBox = await picker.boundingBox();
+  if (!pickerBox) {
+    throw new Error('Picker button has no bounding box');
+  }
+  const from = {
+    x: pickerBox.x + pickerBox.width / 2,
+    y: pickerBox.y + pickerBox.height / 2,
+  };
+  const to = await pointForCell(page, toCell[0], toCell[1]);
+  await picker.dispatchEvent('pointerdown', {
+    pointerId: 33,
+    pointerType: 'touch',
+    button: 0,
+    buttons: 1,
+    clientX: from.x,
+    clientY: from.y,
+    bubbles: true,
+    composed: true,
+    isPrimary: true,
+  });
+  await page.evaluate(
+    ({ x, y }) => {
+      window.dispatchEvent(
+        new PointerEvent('pointermove', {
+          pointerId: 33,
+          pointerType: 'touch',
+          button: 0,
+          buttons: 1,
+          clientX: x,
+          clientY: y,
+          bubbles: true,
+          composed: true,
+          isPrimary: true,
+        }),
+      );
+    },
+    { x: to.x, y: to.y },
+  );
+  await page.evaluate(
+    ({ x, y }) => {
+      window.dispatchEvent(
+        new PointerEvent('pointerup', {
+          pointerId: 33,
+          pointerType: 'touch',
+          button: 0,
+          buttons: 0,
+          clientX: x,
+          clientY: y,
+          bubbles: true,
+          composed: true,
+          isPrimary: true,
+        }),
+      );
+    },
+    { x: to.x, y: to.y },
+  );
+}
+
 async function dragCellWithMouse(
   page: Page,
   fromCell: [number, number],
@@ -151,6 +216,24 @@ test('touch drag moves a placed piece', async ({ page }, testInfo) => {
     tapCell,
     (p, from, to) => dragCellWithPointerEvents(p, 'touch', from, to),
   );
+});
+
+test('touch drag from picker uses previewed orientation', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'touch', 'This test runs in touch project only.');
+  await page.goto('/');
+  await expect(page.getByRole('heading', { name: 'Rectangle Solver' })).toBeVisible();
+  await page.locator('label.board-size-select select').selectOption('12x5');
+
+  await page.getByRole('button', { name: 'Rotate ⟳' }).click();
+  const rotated = cellsForPose('F', { rotation: 1, flipped: false });
+  const anchor: [number, number] = [1, 2];
+  const dropCell = clickCellForAnchor(anchor, rotated);
+  await dragFromPickerToBoardTouch(page, 'F', [dropCell[0], dropCell[1]]);
+  await expect(page.locator('input#fixed')).toHaveValue('1');
+
+  const occupiedCell = placeAtAnchor(rotated, anchor[0], anchor[1])[0];
+  await tapCell(page, occupiedCell[0], occupiedCell[1]);
+  await expect(page.locator('input#fixed')).toHaveValue('0');
 });
 
 test('click on placed piece removes it without drag', async ({ page }, testInfo) => {

@@ -479,6 +479,16 @@ button:disabled {
   pointer-events: none;
 }
 
+.touch-board-overlay {
+  position: fixed;
+  z-index: 35;
+  border: 1px solid rgba(112, 136, 198, 0.42);
+  background: rgba(6, 10, 20, 0.9);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.44);
+  pointer-events: none;
+  overflow: hidden;
+}
+
 .slider-row {
   display: grid;
   grid-template-columns: auto 1fr auto;

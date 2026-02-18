@@ -16,7 +16,7 @@
     cellhover: { row: number; col: number } | null;
     cellclick: { row: number; col: number; x: number; y: number };
     celldrop: { row: number; col: number } | null;
-    dragstate: { active: boolean };
+    dragstate: { active: boolean; pointerType: string | null };
     pointermove: { row: number; col: number } | null;
   }>();
 
@@ -29,6 +29,7 @@
   let raf = 0;
   let resizeObserver: ResizeObserver | null = null;
   let activePointerId: number | null = null;
+  let activePointerType: string | null = null;
   let globalPointerListenersAttached = false;
 
   function attachGlobalPointerListeners(): void {
@@ -367,9 +368,10 @@
       return;
     }
     activePointerId = event.pointerId;
+    activePointerType = event.pointerType ?? null;
     trySetPointerCapture(event.pointerId);
     attachGlobalPointerListeners();
-    dispatch('dragstate', { active: true });
+    dispatch('dragstate', { active: true, pointerType: activePointerType });
     dispatch('pointermove', pointerToBoardPos(event, true));
     dispatch('cellhover', cell);
     dispatch('cellclick', { ...cell, x: event.clientX, y: event.clientY });
@@ -385,9 +387,11 @@
     }
     const pointerId = activePointerId;
     activePointerId = null;
+    const pointerType = activePointerType;
+    activePointerType = null;
     detachGlobalPointerListeners();
     tryReleasePointerCapture(pointerId);
-    dispatch('dragstate', { active: false });
+    dispatch('dragstate', { active: false, pointerType });
     dispatch('pointermove', pointerToBoardPos(event, true));
     dispatch('celldrop', pointerToCell(event));
   }
@@ -402,9 +406,11 @@
     }
     const pointerId = activePointerId;
     activePointerId = null;
+    const pointerType = activePointerType;
+    activePointerType = null;
     detachGlobalPointerListeners();
     tryReleasePointerCapture(pointerId);
-    dispatch('dragstate', { active: false });
+    dispatch('dragstate', { active: false, pointerType });
     dispatch('pointermove', null);
     dispatch('celldrop', null);
   }
@@ -429,6 +435,7 @@
     cancelAnimationFrame(raf);
     resizeObserver?.disconnect();
     activePointerId = null;
+    activePointerType = null;
     detachGlobalPointerListeners();
   });
 
