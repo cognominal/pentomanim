@@ -881,18 +881,19 @@
     clampToBoard: boolean,
   ): void {
     rectanglePickerPointerClient = { x: clientX, y: clientY };
+    const boardPos = rectangleBoardPosFromClient(clientX, clientY, clampToBoard);
     const overlayPos = rectangleOverlayPosFromClient(clientX, clientY);
-    if (selectedPiece && transformed && overlayPos) {
+    const visualPos = boardPos ?? overlayPos;
+    if (selectedPiece && transformed && visualPos) {
       rectangleFloatingPlacement = {
         name: selectedPiece,
         cells: floatCellsAtPointerBarycenter(
           transformed,
-          overlayPos.row,
-          overlayPos.col,
+          visualPos.row,
+          visualPos.col,
         ),
       };
     }
-    const boardPos = rectangleBoardPosFromClient(clientX, clientY, clampToBoard);
     if (!boardPos) {
       rectangleHoverPointerPos = null;
       rectanglePointerOverBoard = false;
