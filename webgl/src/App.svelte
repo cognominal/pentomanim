@@ -881,9 +881,14 @@
     clampToBoard: boolean,
   ): void {
     rectanglePickerPointerClient = { x: clientX, y: clientY };
-    const boardPos = rectangleBoardPosFromClient(clientX, clientY, clampToBoard);
+    const boardPosInside = rectangleBoardPosFromClient(clientX, clientY, false);
+    const boardPos = boardPosInside ?? rectangleBoardPosFromClient(
+      clientX,
+      clientY,
+      clampToBoard,
+    );
     const overlayPos = rectangleOverlayPosFromClient(clientX, clientY);
-    const visualPos = boardPos ?? overlayPos;
+    const visualPos = boardPosInside ?? overlayPos;
     if (selectedPiece && transformed && visualPos) {
       rectangleFloatingPlacement = {
         name: selectedPiece,
@@ -894,7 +899,7 @@
         ),
       };
     }
-    if (!boardPos) {
+    if (!boardPosInside) {
       rectangleHoverPointerPos = null;
       rectanglePointerOverBoard = false;
       rectangleDraggedPlacement = null;
@@ -902,7 +907,7 @@
       return;
     }
     rectanglePointerOverBoard = true;
-    rectangleHoverPointerPos = boardPos;
+    rectangleHoverPointerPos = boardPosInside;
     setRectangleDragCandidateFromPointer(boardPos.row, boardPos.col, false);
     rectangleDragMoved = true;
   }
