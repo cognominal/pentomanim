@@ -42,6 +42,9 @@ bun run preview
 - During picker -> board touch drag:
   - the board does not render the dragged piece directly,
   - a touch overlay shows a live ghost moving toward the board.
+- During picker/selected-preview touch drag:
+  - the ghost barycenter tracks the touched position in the overlay,
+  - the overlay is semi-transparent for visibility.
 - The same touch overlay ghost behavior applies when dragging from the
   selected piece preview.
 - During board -> board touch drag:

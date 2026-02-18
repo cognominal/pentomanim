@@ -496,6 +496,10 @@ button:disabled {
   overflow: hidden;
 }
 
+.touch-board-overlay-picker {
+  opacity: 0.7;
+}
+
 .slider-row {
   display: grid;
   grid-template-columns: auto 1fr auto;
