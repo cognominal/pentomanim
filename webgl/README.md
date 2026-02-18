@@ -37,6 +37,15 @@ bun run preview
 - Rotate/flip/reset active piece and transformed active preview.
 - Ghost placement preview on board.
 - Manual placement/removal by tapping/clicking cells.
+- Touch drag from picker to board is supported.
+- Picker drag uses the currently previewed orientation at drag start.
+- During picker -> board touch drag:
+  - no board-replica overlay is shown,
+  - a live ghost follows the drag.
+- During board -> board touch drag:
+  - a dynamic board-replica overlay is shown between the app tab bar and
+    the board (excluding both),
+  - overlay updates in real time with board/drag state.
 - `Solve` from current prefix.
 - `Animate Solve` with progressive acceleration and stop/resume behavior.
 - Dynamic step counter and speed slider (linear UI, exponential speed mapping).
@@ -58,6 +67,8 @@ bun run preview
   - Place/remove: click board cells.
 - Touch:
   - Select piece from picker.
+  - Drag piece from picker to board.
+  - Drag placed piece inside board.
   - Place/remove: tap board cells.
 
 ## Key Source Files

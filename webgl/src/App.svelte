@@ -265,6 +265,7 @@
     activePane === 'rectangle' &&
     touchViewMode === 'solver' &&
     rectangleDragInFlight &&
+    !rectanglePickerDragActive &&
     (rectangleDragPointerType === 'touch' ||
       rectanglePickerDrag?.pointerType === 'touch');
 
