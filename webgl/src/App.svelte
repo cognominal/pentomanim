@@ -265,7 +265,6 @@
     activePane === 'rectangle' &&
     touchViewMode === 'solver' &&
     rectangleDragInFlight &&
-    !rectanglePickerDragActive &&
     (rectangleDragPointerType === 'touch' ||
       rectanglePickerDrag?.pointerType === 'touch');
 
@@ -2217,6 +2216,10 @@
             {/if}
           </span>
           <span class="touch-selected-shape">
+            <span
+              class="touch-selected-drag-proxy"
+              on:pointerdown={(event) => selectedPiece && startPickerDrag(event, selectedPiece)}
+            >
             {#if selectedPiece && transformed}
               {@const touchDims = bounds(transformed)}
               <span
@@ -2231,6 +2234,7 @@
             {:else}
               <span class="touch-selected-placeholder" aria-hidden="true"></span>
             {/if}
+            </span>
           </span>
         </div>
         <span class="pose-readout">tap: select piece, tap board: place/remove</span>
@@ -2266,7 +2270,8 @@
         cols={rectangleDisplayCols}
         placements={toDisplayPlacements(rectangleRenderPlacements, boardRows, rectangleBoardRotatedView)}
         settleOutlineCells={rectangleSettleOutline}
-        floatingPlacement={rectangleFloatingPlacement &&
+        floatingPlacement={!rectanglePickerDragActive &&
+        rectangleFloatingPlacement &&
         !(rectangleDragInFlight &&
           rectangleDraggedOriginPlacement &&
           !rectangleDraggedPlacementValid)
@@ -2277,7 +2282,8 @@
               ),
             }
           : null}
-        ghost={rectangleDragInFlight &&
+        ghost={!rectanglePickerDragActive &&
+        rectangleDragInFlight &&
         rectangleDraggedOriginPlacement &&
         rectangleFloatingPlacement &&
         !rectangleDraggedPlacementValid
@@ -2306,50 +2312,72 @@
         />
     </div>
     {#if rectangleTouchOverlayActive}
-      <div class="touch-board-overlay" style={rectangleTouchOverlayStyle}>
-        <BoardWebGL
-          rows={rectangleDisplayRows}
-          cols={rectangleDisplayCols}
-          placements={toDisplayPlacements(
-            rectangleRenderPlacements,
-            boardRows,
-            rectangleBoardRotatedView,
-          )}
-          settleOutlineCells={rectangleSettleOutline}
-          floatingPlacement={rectangleFloatingPlacement &&
-          !(rectangleDragInFlight &&
-            rectangleDraggedOriginPlacement &&
-            !rectangleDraggedPlacementValid)
-            ? {
-                name: rectangleFloatingPlacement.name,
-                cells: rectangleFloatingPlacement.cells.map(([r, c]) =>
-                  toDisplayCell(r, c, boardRows, rectangleBoardRotatedView),
-                ),
-              }
-            : null}
-          ghost={rectangleDragInFlight &&
-          rectangleDraggedOriginPlacement &&
-          rectangleFloatingPlacement &&
-          !rectangleDraggedPlacementValid
-            ? {
-                name: rectangleFloatingPlacement.name,
-                cells: rectangleFloatingPlacement.cells.map(([r, c]) =>
-                  toDisplayCell(r, c, boardRows, rectangleBoardRotatedView),
-                ),
-                valid: false,
-              }
-            : ghostPlacement && !ghostOverlapsPlacement
+      {#if rectanglePickerDragActive}
+        <div class="touch-board-overlay" style={rectangleTouchOverlayStyle}>
+          <BoardWebGL
+            rows={rectangleDisplayRows}
+            cols={rectangleDisplayCols}
+            placements={[]}
+            settleOutlineCells={[]}
+            floatingPlacement={null}
+            ghost={rectangleFloatingPlacement
               ? {
-                  name: ghostPlacement.name,
-                  cells: ghostPlacement.cells.map(([r, c]) =>
+                  name: rectangleFloatingPlacement.name,
+                  cells: rectangleFloatingPlacement.cells.map(([r, c]) =>
                     toDisplayCell(r, c, boardRows, rectangleBoardRotatedView),
                   ),
-                  valid: ghostValid,
+                  valid: rectangleDraggedPlacementValid,
                 }
               : null}
-          interactive={false}
-        />
-      </div>
+            interactive={false}
+          />
+        </div>
+      {:else}
+        <div class="touch-board-overlay" style={rectangleTouchOverlayStyle}>
+          <BoardWebGL
+            rows={rectangleDisplayRows}
+            cols={rectangleDisplayCols}
+            placements={toDisplayPlacements(
+              rectangleRenderPlacements,
+              boardRows,
+              rectangleBoardRotatedView,
+            )}
+            settleOutlineCells={rectangleSettleOutline}
+            floatingPlacement={rectangleFloatingPlacement &&
+            !(rectangleDragInFlight &&
+              rectangleDraggedOriginPlacement &&
+              !rectangleDraggedPlacementValid)
+              ? {
+                  name: rectangleFloatingPlacement.name,
+                  cells: rectangleFloatingPlacement.cells.map(([r, c]) =>
+                    toDisplayCell(r, c, boardRows, rectangleBoardRotatedView),
+                  ),
+                }
+              : null}
+            ghost={rectangleDragInFlight &&
+            rectangleDraggedOriginPlacement &&
+            rectangleFloatingPlacement &&
+            !rectangleDraggedPlacementValid
+              ? {
+                  name: rectangleFloatingPlacement.name,
+                  cells: rectangleFloatingPlacement.cells.map(([r, c]) =>
+                    toDisplayCell(r, c, boardRows, rectangleBoardRotatedView),
+                  ),
+                  valid: false,
+                }
+              : ghostPlacement && !ghostOverlapsPlacement
+                ? {
+                    name: ghostPlacement.name,
+                    cells: ghostPlacement.cells.map(([r, c]) =>
+                      toDisplayCell(r, c, boardRows, rectangleBoardRotatedView),
+                    ),
+                    valid: ghostValid,
+                  }
+                : null}
+            interactive={false}
+          />
+        </div>
+      {/if}
     {/if}
 
     <div class="slider-row">

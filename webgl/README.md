@@ -40,8 +40,10 @@ bun run preview
 - Touch drag from picker to board is supported.
 - Picker drag uses the currently previewed orientation at drag start.
 - During picker -> board touch drag:
-  - no board-replica overlay is shown,
-  - a live ghost follows the drag.
+  - the board does not render the dragged piece directly,
+  - a touch overlay shows a live ghost moving toward the board.
+- The same touch overlay ghost behavior applies when dragging from the
+  selected piece preview.
 - During board -> board touch drag:
   - a dynamic board-replica overlay is shown between the app tab bar and
     the board (excluding both),

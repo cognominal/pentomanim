@@ -449,6 +449,13 @@ button:disabled {
   background: rgba(14, 25, 52, 0.72);
 }
 
+.touch-selected-drag-proxy {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  touch-action: none;
+}
+
 .touch-selected-mini {
   transform: scale(1.25);
   transform-origin: center;
