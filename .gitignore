@@ -25,3 +25,4 @@ __pycache__/
 /webgl/*.tsbuildinfo
 /webgl/vite.config.js
 /webgl/vite.config.d.ts
+/webgl/test-results/
