@@ -326,6 +326,7 @@ main.touch-mode .piece-btn {
   min-height: var(--touch-piece-min-height);
   padding: var(--touch-piece-padding);
   border-radius: 6px;
+  touch-action: none;
 }
 
 main.touch-mode .mini {

@@ -166,6 +166,9 @@
     ? visiblePlacements.filter((p) => p.name !== rectangleDragOriginName)
     : visiblePlacements;
   $: rectangleSettleOutline = (() => {
+    if (rectanglePickerDragActive) {
+      return [];
+    }
     if (rectangleDraggedOriginPlacement || rectangleDragInFlight) {
       if (rectangleDraggedPlacement !== null && rectangleDraggedPlacementValid) {
         return rectangleDraggedPlacement.cells.map(([r, c]) =>
@@ -968,6 +971,8 @@
     if (isRectangleLocked || pointerType !== 'touch') {
       return;
     }
+    event.preventDefault();
+    event.stopPropagation();
     if (selectedPiece !== piece) {
       selectedPiece = piece;
       resetPose();
