@@ -204,6 +204,17 @@ header p.error-status {
   gap: 0.5rem;
 }
 
+.solver-workarea {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 0.5rem;
+  min-height: 0;
+}
+
+.board-stage {
+  min-height: 0;
+}
+
 main.long-rect-mode .solver-pane {
   grid-column: 1 / -1;
 }
@@ -639,6 +650,10 @@ main.long-rect-mode .solved-pane {
     gap: 0.3rem;
   }
 
+  main.touch-mode .solver-workarea {
+    gap: 0.3rem;
+  }
+
   main.touch-mode .status-row {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
@@ -691,6 +706,23 @@ main.long-rect-mode .solved-pane {
 
   main.touch-mode .solved-list {
     overflow: hidden;
+  }
+
+  main.touch-mode .solver-pane.left-picker-layout .solver-workarea {
+    grid-template-columns: minmax(58px, 22vw) minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
+    align-items: start;
+  }
+
+  main.touch-mode .solver-pane.left-picker-layout .piece-bank {
+    grid-template-columns: minmax(0, 1fr);
+    align-content: start;
+    max-height: 100%;
+    overflow-y: auto;
+  }
+
+  main.touch-mode .solver-pane.left-picker-layout .board-stage {
+    min-width: 0;
   }
 }
 

@@ -96,6 +96,7 @@
   let tripAnimationStepsUsed = $state(0);
   let tripAnimationStartSliderValue = $state<number | null>(null);
   let rectangleBoardWrapEl = $state<HTMLDivElement | null>(null);
+  let rectangleSolverPaneEl = $state<HTMLElement | null>(null);
   let tripBoardWrapEl = $state<HTMLDivElement | null>(null);
   let rectangleStatusEl = $state<HTMLParagraphElement | null>(null);
   let tripStatusEl = $state<HTMLParagraphElement | null>(null);
@@ -344,6 +345,13 @@
       rectangleDragInFlight &&
       (rectangleDragPointerType === 'touch' ||
         rectanglePickerDrag?.pointerType === 'touch'),
+  );
+  const rectangleLeftPickerLayout = $derived(
+    useTouchLayout &&
+      activePane === 'rectangle' &&
+      touchViewMode === 'solver' &&
+      rectangleBoardRotatedView &&
+      boardRows === 3,
   );
 
   $effect(() => {
@@ -935,8 +943,19 @@
       rectangleTouchOverlayStyle = '';
       return;
     }
-    const tabsRect = paneTabsEl.getBoundingClientRect();
     const boardRect = rectangleBoardWrapEl.getBoundingClientRect();
+    if (rectangleLeftPickerLayout && rectangleSolverPaneEl) {
+      const paneRect = rectangleSolverPaneEl.getBoundingClientRect();
+      const left = Math.round(paneRect.left);
+      const top = Math.round(boardRect.top);
+      const width = Math.max(0, Math.floor(boardRect.left - paneRect.left - 2));
+      const height = Math.max(0, Math.floor(boardRect.height));
+      rectangleTouchOverlayStyle =
+        `top:${top}px;left:${left}px;` +
+        `width:${width}px;height:${height}px;`;
+      return;
+    }
+    const tabsRect = paneTabsEl.getBoundingClientRect();
     const top = Math.ceil(tabsRect.bottom + 1);
     const height = Math.max(0, Math.floor(boardRect.top - tabsRect.bottom - 2));
     rectangleTouchOverlayStyle =
@@ -958,7 +977,14 @@
     const x = Math.max(0, Math.min(rect.width, clientX - rect.left));
     const y = Math.max(0, Math.min(rect.height, clientY - rect.top));
     const displayRow = (y / rect.height) * rectangleDisplayRows;
-    const displayCol = (x / rect.width) * rectangleDisplayCols;
+    let displayCol = (x / rect.width) * rectangleDisplayCols;
+    if (rectangleLeftPickerLayout && rectangleBoardWrapEl) {
+      const boardRect = rectangleBoardWrapEl.getBoundingClientRect();
+      if (boardRect.width > 0) {
+        displayCol =
+          ((clientX - boardRect.left) / boardRect.width) * rectangleDisplayCols;
+      }
+    }
     const [row, col] = fromDisplayCell(
       displayRow,
       displayCol,
@@ -2329,7 +2355,11 @@
 
   {#if activePane === 'rectangle'}
   {#if !useTouchLayout || touchViewMode === 'solver'}
-  <section class="pane solver-pane">
+  <section
+    class="pane solver-pane"
+    class:left-picker-layout={rectangleLeftPickerLayout}
+    bind:this={rectangleSolverPaneEl}
+  >
     <header>
       <div class="solver-title-row">
         <h2>Rectangle Solver</h2>
@@ -2356,38 +2386,6 @@
         </button>
       </div>
     </header>
-
-    <div class="piece-bank">
-      {#each PIECE_ORDER as name}
-        {@const disabled = usedNames.has(name)}
-        {@const shape =
-          selectedPiece === name && transformed
-            ? transformed
-            : pieceCells(name)}
-        {@const dims = bounds(shape)}
-        <button
-          class="piece-btn"
-          class:selected={selectedPiece === name}
-          class:used={disabled}
-          onclick={() => selectPiece(name)}
-          onpointerdown={(event) => startPickerDrag(event, name)}
-          disabled={disabled || isRectangleLocked}
-          aria-label={`Select ${name}`}
-        >
-          {#if !useTouchLayout}
-            <span class="label">{name}</span>
-          {/if}
-          <span
-            class="mini"
-            style={`--rows:${dims.rows};--cols:${dims.cols};--c:${PIECE_COLORS[name]}`}
-          >
-            {#each shape as [r, c]}
-              <span class="cell" style={`grid-row:${r + 1};grid-column:${c + 1}`}></span>
-            {/each}
-          </span>
-        </button>
-      {/each}
-    </div>
 
     <div class="toolbar">
       <button onclick={rotateLeft} disabled={!selectedPiece}>Rotate ⟲</button>
@@ -2431,13 +2429,47 @@
       {/if}
     </div>
 
-    <div
-      class="board-wrap"
-      class:solved-transition={rectangleSolvedTransitioning}
-      bind:this={rectangleBoardWrapEl}
-      style={`--board-ratio:${rectangleDisplayCols / rectangleDisplayRows};${rectangleSolvedTransitionStyle}`}
-    >
-      <BoardWebGL
+    <div class="solver-workarea">
+      <div class="piece-bank">
+        {#each PIECE_ORDER as name}
+          {@const disabled = usedNames.has(name)}
+          {@const shape =
+            selectedPiece === name && transformed
+              ? transformed
+              : pieceCells(name)}
+          {@const dims = bounds(shape)}
+          <button
+            class="piece-btn"
+            class:selected={selectedPiece === name}
+            class:used={disabled}
+            onclick={() => selectPiece(name)}
+            onpointerdown={(event) => startPickerDrag(event, name)}
+            disabled={disabled || isRectangleLocked}
+            aria-label={`Select ${name}`}
+          >
+            {#if !useTouchLayout}
+              <span class="label">{name}</span>
+            {/if}
+            <span
+              class="mini"
+              style={`--rows:${dims.rows};--cols:${dims.cols};--c:${PIECE_COLORS[name]}`}
+            >
+              {#each shape as [r, c]}
+                <span class="cell" style={`grid-row:${r + 1};grid-column:${c + 1}`}></span>
+              {/each}
+            </span>
+          </button>
+        {/each}
+      </div>
+
+      <div class="board-stage">
+        <div
+          class="board-wrap"
+          class:solved-transition={rectangleSolvedTransitioning}
+          bind:this={rectangleBoardWrapEl}
+          style={`--board-ratio:${rectangleDisplayCols / rectangleDisplayRows};${rectangleSolvedTransitionStyle}`}
+        >
+          <BoardWebGL
         rows={rectangleDisplayRows}
         cols={rectangleDisplayCols}
         placements={toDisplayPlacements(rectangleRenderPlacements, boardRows, rectangleBoardRotatedView)}
@@ -2481,9 +2513,9 @@
           celldrop={onBoardDrop}
           dragstate={onRectangleDragState}
           pointermove={onRectanglePointerMove}
-        />
-    </div>
-    {#if rectangleTouchOverlayActive}
+          />
+        </div>
+        {#if rectangleTouchOverlayActive}
       {#if rectanglePickerDragInOverlay}
         <div
           class="touch-board-overlay touch-board-overlay-picker"
@@ -2555,8 +2587,10 @@
             interactive={false}
           />
         </div>
+        {/if}
       {/if}
-    {/if}
+      </div>
+    </div>
 
     <div class="slider-row">
       <label for="fixed">Already placed: {prefixCount}</label>
