@@ -2276,6 +2276,18 @@
     return PIECES[name];
   }
 
+  function orientCellsForRectangleView(
+    cells: [number, number][],
+  ): [number, number][] {
+    if (!rectangleBoardRotatedView) {
+      return cells;
+    }
+    const rotated = cells.map(([r, c]) => [c, -r] as [number, number]);
+    const minRow = Math.min(...rotated.map(([r]) => r));
+    const minCol = Math.min(...rotated.map(([, c]) => c));
+    return rotated.map(([r, c]) => [r - minRow, c - minCol]);
+  }
+
   function bounds(cells: [number, number][]): { rows: number; cols: number } {
     const maxR = Math.max(...cells.map((c) => c[0])) + 1;
     const maxC = Math.max(...cells.map((c) => c[1])) + 1;
@@ -2414,7 +2426,11 @@
         </span>
       {/if}
       {#if !useTouchLayout && selectedPiece}
-        {@const previewCells = transformed && transformed.length > 0 ? transformed : pieceCells(selectedPiece)}
+        {@const previewCells = orientCellsForRectangleView(
+          transformed && transformed.length > 0
+            ? transformed
+            : pieceCells(selectedPiece),
+        )}
         {@const dims = bounds(previewCells)}
         <span class="active-preview-shell" aria-label="Active transformed preview">
           <span
@@ -2433,10 +2449,11 @@
       <div class="piece-bank">
         {#each PIECE_ORDER as name}
           {@const disabled = usedNames.has(name)}
-          {@const shape =
+          {@const shape = orientCellsForRectangleView(
             selectedPiece === name && transformed
               ? transformed
-              : pieceCells(name)}
+              : pieceCells(name),
+          )}
           {@const dims = bounds(shape)}
           <button
             class="piece-btn"
