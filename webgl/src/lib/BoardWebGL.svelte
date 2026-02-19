@@ -1,24 +1,47 @@
 <script lang="ts">
-  import { createEventDispatcher, onDestroy, onMount } from 'svelte';
+  import { onDestroy, onMount } from 'svelte';
   import type { Placement, PieceName } from './pentomino';
   import { PIECE_COLORS, BOARD_COLS, BOARD_ROWS } from './pentomino';
 
-  export let placements: Placement[] = [];
-  export let ghost: { name: PieceName; cells: [number, number][]; valid: boolean } | null = null;
-  export let settleOutlineCells: [number, number][] = [];
-  export let floatingPlacement: { name: PieceName; cells: [number, number][] } | null = null;
-  export let maskCells: [number, number][] = [];
-  export let interactive = true;
-  export let rows = BOARD_ROWS;
-  export let cols = BOARD_COLS;
+  type BoardProps = {
+    placements?: Placement[];
+    ghost?: { name: PieceName; cells: [number, number][]; valid: boolean } | null;
+    settleOutlineCells?: [number, number][];
+    floatingPlacement?: { name: PieceName; cells: [number, number][] } | null;
+    maskCells?: [number, number][];
+    interactive?: boolean;
+    rows?: number;
+    cols?: number;
+    cellhover?: (value: { row: number; col: number } | null) => void;
+    cellclick?: (value: {
+      row: number;
+      col: number;
+      x: number;
+      y: number;
+    }) => void;
+    celldrop?: (value: { row: number; col: number } | null) => void;
+    dragstate?: (value: {
+      active: boolean;
+      pointerType: string | null;
+    }) => void;
+    pointermove?: (value: { row: number; col: number } | null) => void;
+  };
 
-  const dispatch = createEventDispatcher<{
-    cellhover: { row: number; col: number } | null;
-    cellclick: { row: number; col: number; x: number; y: number };
-    celldrop: { row: number; col: number } | null;
-    dragstate: { active: boolean; pointerType: string | null };
-    pointermove: { row: number; col: number } | null;
-  }>();
+  let {
+    placements = [],
+    ghost = null,
+    settleOutlineCells = [],
+    floatingPlacement = null,
+    maskCells = [],
+    interactive = true,
+    rows = BOARD_ROWS,
+    cols = BOARD_COLS,
+    cellhover,
+    cellclick,
+    celldrop,
+    dragstate,
+    pointermove,
+  }: BoardProps = $props();
 
   let canvas: HTMLCanvasElement;
   let gl: WebGLRenderingContext | null = null;
@@ -348,15 +371,15 @@
       return;
     }
     const clamp = activePointerId !== null;
-    dispatch('pointermove', pointerToBoardPos(event, clamp));
-    dispatch('cellhover', pointerToCell(event));
+    pointermove?.(pointerToBoardPos(event, clamp));
+    cellhover?.(pointerToCell(event));
   }
 
   function onLeave(): void {
     if (!interactive) {
       return;
     }
-    dispatch('cellhover', null);
+    cellhover?.(null);
   }
 
   function onPointerDown(event: PointerEvent): void {
@@ -371,10 +394,10 @@
     activePointerType = event.pointerType ?? null;
     trySetPointerCapture(event.pointerId);
     attachGlobalPointerListeners();
-    dispatch('dragstate', { active: true, pointerType: activePointerType });
-    dispatch('pointermove', pointerToBoardPos(event, true));
-    dispatch('cellhover', cell);
-    dispatch('cellclick', { ...cell, x: event.clientX, y: event.clientY });
+    dragstate?.({ active: true, pointerType: activePointerType });
+    pointermove?.(pointerToBoardPos(event, true));
+    cellhover?.(cell);
+    cellclick?.({ ...cell, x: event.clientX, y: event.clientY });
   }
 
   function onPointerUp(event: PointerEvent): void {
@@ -391,9 +414,9 @@
     activePointerType = null;
     detachGlobalPointerListeners();
     tryReleasePointerCapture(pointerId);
-    dispatch('dragstate', { active: false, pointerType });
-    dispatch('pointermove', pointerToBoardPos(event, true));
-    dispatch('celldrop', pointerToCell(event));
+    dragstate?.({ active: false, pointerType });
+    pointermove?.(pointerToBoardPos(event, true));
+    celldrop?.(pointerToCell(event));
   }
 
   function onPointerCancel(event: PointerEvent): void {
@@ -410,9 +433,9 @@
     activePointerType = null;
     detachGlobalPointerListeners();
     tryReleasePointerCapture(pointerId);
-    dispatch('dragstate', { active: false, pointerType });
-    dispatch('pointermove', null);
-    dispatch('celldrop', null);
+    dragstate?.({ active: false, pointerType });
+    pointermove?.(null);
+    celldrop?.(null);
   }
 
   function resizeCanvas(): void {
@@ -439,7 +462,7 @@
     detachGlobalPointerListeners();
   });
 
-  $: {
+  $effect(() => {
     placements;
     ghost;
     maskCells;
@@ -448,18 +471,18 @@
     rows;
     cols;
     scheduleDraw();
-  }
+  });
 </script>
 
 <canvas
   bind:this={canvas}
   class:interactive
-  on:pointerdown={onPointerDown}
-  on:pointerup={onPointerUp}
-  on:pointercancel={onPointerCancel}
-  on:pointermove={onMove}
-  on:pointerleave={onLeave}
-/>
+  onpointerdown={onPointerDown}
+  onpointerup={onPointerUp}
+  onpointercancel={onPointerCancel}
+  onpointermove={onMove}
+  onpointerleave={onLeave}
+></canvas>
 
 <style>
   canvas {

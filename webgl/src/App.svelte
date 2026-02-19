@@ -58,118 +58,266 @@
   const SOLVED_TRANSITION_MS = 2000;
   const STATUS_FLIGHT_MS = 1000;
 
-  let selectedPiece: PieceName | null = 'F';
-  let selectedBoardSize: (typeof boardSizeOptions)[number] = '10x6';
-  let activePane: (typeof paneOptions)[number] = 'rectangle';
-  let touchViewMode: (typeof touchViewOptions)[number] = 'solver';
-  let pose: Pose = { rotation: 0, flipped: false };
-  let hover: Hover = null;
-  let placements: Placement[] = [];
-  let prefixCount = 0;
-  let solvedSolutions: SavedSolution[] = [];
-  let useTouchLayout =
+  let selectedPiece = $state<PieceName | null>('F');
+  let selectedBoardSize = $state<(typeof boardSizeOptions)[number]>('10x6');
+  let activePane = $state<(typeof paneOptions)[number]>('rectangle');
+  let touchViewMode = $state<(typeof touchViewOptions)[number]>('solver');
+  let pose = $state<Pose>({ rotation: 0, flipped: false });
+  let hover = $state<Hover>(null);
+  let placements = $state<Placement[]>([]);
+  let prefixCount = $state(0);
+  let solvedSolutions = $state<SavedSolution[]>([]);
+  let useTouchLayout = $state(
     isTouchDevice ||
-    (typeof window !== 'undefined' && window.innerWidth <= COMPACT_LAYOUT_MAX_WIDTH);
-  let status = 'Pick a piece and drag it to the board.';
-  let currentPrefixSolutions: number | null = null;
-  let isAnimating = false;
-  let animationTimer: ReturnType<typeof setInterval> | null = null;
-  let animationStepsUsed = 0;
-  let animationTraceLength = 0;
-  let animationStartSliderValue: number | null = null;
-  let showRepoLink = false;
-  let triplicationProblem: TriplicationProblem | null = null;
-  let triplicationStatus = 'Press New Triplication Problem to generate a solvable puzzle.';
-  let isGeneratingTriplication = false;
-  let tripSelectedPiece: PieceName | null = null;
-  let tripPose: Pose = { rotation: 0, flipped: false };
-  let tripHover: Hover = null;
-  let tripPlacements: Placement[] = [];
-  let tripPrefixCount = 0;
-  let tripSolvedSolutions: SavedTriplicationSolution[] = [];
-  let tripIsAnimating = false;
-  let tripAnimationTimer: ReturnType<typeof setInterval> | null = null;
-  let tripAnimationStepsUsed = 0;
-  let tripAnimationStartSliderValue: number | null = null;
-  let rectangleBoardWrapEl: HTMLDivElement | null = null;
-  let tripBoardWrapEl: HTMLDivElement | null = null;
-  let rectangleStatusEl: HTMLParagraphElement | null = null;
-  let tripStatusEl: HTMLParagraphElement | null = null;
-  let solvedToggleEl: HTMLButtonElement | null = null;
-  let paneTabsEl: HTMLElement | null = null;
-  let rectangleSolvedTransitionTimer: ReturnType<typeof setTimeout> | null = null;
-  let tripSolvedTransitionTimer: ReturnType<typeof setTimeout> | null = null;
-  let rectangleSolvedTransitioning = false;
-  let tripSolvedTransitioning = false;
-  let rectangleSolvedTransitionStyle = '';
-  let tripSolvedTransitionStyle = '';
-  let solverCountWorker: Worker | null = null;
-  let solverCountRequestSeq = 0;
-  let activeSolverCountRequestId = -1;
-  let rectangleDragActive = false;
-  let rectangleDragPointerType: string | null = null;
-  let rectanglePickerDrag: PickerDragState | null = null;
-  let tripDragActive = false;
-  let rectangleDraggedPlacement: Placement | null = null;
-  let tripDraggedPlacement: Placement | null = null;
-  let rectangleSnapTimer: ReturnType<typeof setTimeout> | null = null;
-  let rectangleSnapRaf = 0;
-  let rectangleSnapAnimating = false;
-  let rectangleDragMoved = false;
-  let rectangleDraggedOriginKey: string | null = null;
-  let rectangleDraggedOriginPlacement: Placement | null = null;
-  let rectangleDraggedPlacementValid = false;
-  let rectangleFloatingPlacement: { name: PieceName; cells: [number, number][] } | null = null;
-  let rectanglePointerPos: { row: number; col: number } | null = null;
-  let rectangleDragStartPointer: { row: number; col: number } | null = null;
-  let rectangleDragStartCells: [number, number][] | null = null;
-  let rectangleHoverPointerPos: { row: number; col: number } | null = null;
-  let rectanglePointerOverBoard = false;
-  let rectangleGhostSnapOutline: [number, number][] = [];
+      (typeof window !== 'undefined' &&
+        window.innerWidth <= COMPACT_LAYOUT_MAX_WIDTH),
+  );
+  let status = $state('Pick a piece and drag it to the board.');
+  let currentPrefixSolutions = $state<number | null>(null);
+  let isAnimating = $state(false);
+  let animationTimer = $state<ReturnType<typeof setInterval> | null>(null);
+  let animationStepsUsed = $state(0);
+  let animationTraceLength = $state(0);
+  let animationStartSliderValue = $state<number | null>(null);
+  let showRepoLink = $state(false);
+  let triplicationProblem = $state<TriplicationProblem | null>(null);
+  let triplicationStatus = $state(
+    'Press New Triplication Problem to generate a solvable puzzle.',
+  );
+  let isGeneratingTriplication = $state(false);
+  let tripSelectedPiece = $state<PieceName | null>(null);
+  let tripPose = $state<Pose>({ rotation: 0, flipped: false });
+  let tripHover = $state<Hover>(null);
+  let tripPlacements = $state<Placement[]>([]);
+  let tripPrefixCount = $state(0);
+  let tripSolvedSolutions = $state<SavedTriplicationSolution[]>([]);
+  let tripIsAnimating = $state(false);
+  let tripAnimationTimer = $state<ReturnType<typeof setInterval> | null>(null);
+  let tripAnimationStepsUsed = $state(0);
+  let tripAnimationStartSliderValue = $state<number | null>(null);
+  let rectangleBoardWrapEl = $state<HTMLDivElement | null>(null);
+  let tripBoardWrapEl = $state<HTMLDivElement | null>(null);
+  let rectangleStatusEl = $state<HTMLParagraphElement | null>(null);
+  let tripStatusEl = $state<HTMLParagraphElement | null>(null);
+  let solvedToggleEl = $state<HTMLButtonElement | null>(null);
+  let paneTabsEl = $state<HTMLElement | null>(null);
+  let rectangleSolvedTransitionTimer = $state<ReturnType<typeof setTimeout> | null>(null);
+  let tripSolvedTransitionTimer = $state<ReturnType<typeof setTimeout> | null>(null);
+  let rectangleSolvedTransitioning = $state(false);
+  let tripSolvedTransitioning = $state(false);
+  let rectangleSolvedTransitionStyle = $state('');
+  let tripSolvedTransitionStyle = $state('');
+  let solverCountWorker = $state<Worker | null>(null);
+  let solverCountRequestSeq = $state(0);
+  let activeSolverCountRequestId = $state(-1);
+  let rectangleDragActive = $state(false);
+  let rectangleDragPointerType = $state<string | null>(null);
+  let rectanglePickerDrag = $state<PickerDragState | null>(null);
+  let tripDragActive = $state(false);
+  let rectangleDraggedPlacement = $state<Placement | null>(null);
+  let tripDraggedPlacement = $state<Placement | null>(null);
+  let rectangleSnapTimer = $state<ReturnType<typeof setTimeout> | null>(null);
+  let rectangleSnapRaf = $state(0);
+  let rectangleSnapAnimating = $state(false);
+  let rectangleDragMoved = $state(false);
+  let rectangleDraggedOriginKey = $state<string | null>(null);
+  let rectangleDraggedOriginPlacement = $state<Placement | null>(null);
+  let rectangleDraggedPlacementValid = $state(false);
+  let rectangleFloatingPlacement = $state<{
+    name: PieceName;
+    cells: [number, number][];
+  } | null>(null);
+  let rectanglePointerPos = $state<{ row: number; col: number } | null>(null);
+  let rectangleDragStartPointer = $state<{ row: number; col: number } | null>(null);
+  let rectangleDragStartCells = $state<[number, number][] | null>(null);
+  let rectangleHoverPointerPos = $state<{ row: number; col: number } | null>(
+    null,
+  );
+  let rectanglePointerOverBoard = $state(false);
+  let rectangleGhostSnapOutline = $state<[number, number][]>([]);
   let rectangleGhostSnapRaf = 0;
   let rectangleGhostSnapTargetKey = '';
   let rectangleGhostSnapAnimSeq = 0;
-  let showGhostSnapOutline = false;
-  let rectangleTouchOverlayStyle = '';
-  let rectangleTouchOverlayEl: HTMLDivElement | null = null;
-  let rectanglePickerPointerClient: { x: number; y: number } | null = null;
-  let statusFlight: StatusFlight | null = null;
-  let statusFlightSeq = 0;
-  let statusFlightTimer: ReturnType<typeof setTimeout> | null = null;
-  let rectangleStatusDelayTimer: ReturnType<typeof setTimeout> | null = null;
-  let tripStatusDelayTimer: ReturnType<typeof setTimeout> | null = null;
+  let rectangleTouchOverlayStyle = $state('');
+  let rectangleTouchOverlayEl = $state<HTMLDivElement | null>(null);
+  let rectanglePickerPointerClient = $state<{ x: number; y: number } | null>(
+    null,
+  );
+  let statusFlight = $state<StatusFlight | null>(null);
+  let statusFlightSeq = $state(0);
+  let statusFlightTimer = $state<ReturnType<typeof setTimeout> | null>(null);
+  let rectangleStatusDelayTimer = $state<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
+  let tripStatusDelayTimer = $state<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
   const MIN_INITIAL_SPEED = 0.01;
   const MAX_INITIAL_SPEED = 1000000;
   const SPEED_EXP_RANGE = Math.log2(MAX_INITIAL_SPEED / MIN_INITIAL_SPEED);
   const DEFAULT_INITIAL_SPEED = 1;
   const TRIP_DEFAULT_INITIAL_SPEED = 0.1;
-  let speedSlider = (100 * Math.log2(DEFAULT_INITIAL_SPEED / MIN_INITIAL_SPEED)) / SPEED_EXP_RANGE;
-  let tripSpeedSlider = (100 * Math.log2(TRIP_DEFAULT_INITIAL_SPEED / MIN_INITIAL_SPEED)) / SPEED_EXP_RANGE;
-  $: initialSpeedMultiplier = speedFromSlider(speedSlider);
-  $: tripInitialSpeedMultiplier = speedFromSlider(tripSpeedSlider);
-  $: rectangleSolvedCount = solvedSolutions.length;
-  $: triplicationSolvedCount = tripSolvedSolutions.length;
-  $: activeSolvedCount = activePane === 'rectangle' ? rectangleSolvedCount : triplicationSolvedCount;
-  $: isRectangleLocked = isAnimating || rectangleSolvedTransitioning || rectangleSnapAnimating;
-  $: isTriplicationLocked = tripIsAnimating || tripSolvedTransitioning;
+  let speedSlider = $state(
+    (100 * Math.log2(DEFAULT_INITIAL_SPEED / MIN_INITIAL_SPEED)) /
+      SPEED_EXP_RANGE,
+  );
+  let tripSpeedSlider = $state(
+    (100 * Math.log2(TRIP_DEFAULT_INITIAL_SPEED / MIN_INITIAL_SPEED)) /
+      SPEED_EXP_RANGE,
+  );
+  const initialSpeedMultiplier = $derived(speedFromSlider(speedSlider));
+  const tripInitialSpeedMultiplier = $derived(speedFromSlider(tripSpeedSlider));
+  const rectangleSolvedCount = $derived(solvedSolutions.length);
+  const triplicationSolvedCount = $derived(tripSolvedSolutions.length);
+  const activeSolvedCount = $derived(
+    activePane === 'rectangle' ? rectangleSolvedCount : triplicationSolvedCount,
+  );
+  const isRectangleLocked = $derived(
+    isAnimating || rectangleSolvedTransitioning || rectangleSnapAnimating,
+  );
+  const isTriplicationLocked = $derived(
+    tripIsAnimating || tripSolvedTransitioning,
+  );
 
-  $: visiblePlacements = placements.slice(0, prefixCount);
-  $: rectangleRenderPlacements = rectangleDragOriginName
-    ? rectangleBasePlacements
-    : visiblePlacements;
-  $: rectangleDragOriginName = rectangleDraggedOriginPlacement?.name ?? null;
-  $: rectangleDragInFlight =
-    rectangleDragActive || rectanglePickerDrag !== null;
-  $: rectanglePickerDragActive = rectanglePickerDrag !== null;
-  $: rectanglePickerDragEnteredBoard = rectanglePickerDrag?.enteredBoard ?? false;
-  $: rectanglePickerDragInOverlay =
-    rectanglePickerDragActive && !rectanglePickerDragEnteredBoard;
-  $: rectanglePickerDragOutsideBoard =
-    rectanglePickerDragActive && !rectanglePointerOverBoard;
-  $: rectangleBasePlacements = rectangleDragOriginName
-    ? visiblePlacements.filter((p) => p.name !== rectangleDragOriginName)
-    : visiblePlacements;
-  $: rectangleSettleOutline = (() => {
+  const visiblePlacements = $derived(placements.slice(0, prefixCount));
+  const rectangleDragOriginName = $derived(
+    rectangleDraggedOriginPlacement?.name ?? null,
+  );
+  const rectangleDragInFlight = $derived(
+    rectangleDragActive || rectanglePickerDrag !== null,
+  );
+  const rectanglePickerDragActive = $derived(rectanglePickerDrag !== null);
+  const rectanglePickerDragEnteredBoard = $derived(
+    rectanglePickerDrag?.enteredBoard ?? false,
+  );
+  const rectanglePickerDragInOverlay = $derived(
+    rectanglePickerDragActive && !rectanglePickerDragEnteredBoard,
+  );
+  const rectanglePickerDragOutsideBoard = $derived(
+    rectanglePickerDragActive && !rectanglePointerOverBoard,
+  );
+  const rectangleBasePlacements = $derived(
+    rectangleDragOriginName
+      ? visiblePlacements.filter((p) => p.name !== rectangleDragOriginName)
+      : visiblePlacements,
+  );
+  const rectangleRenderPlacements = $derived(
+    rectangleDragOriginName ? rectangleBasePlacements : visiblePlacements,
+  );
+  const boardDims = $derived.by(
+    () => selectedBoardSize.split('x').map(Number) as [number, number],
+  );
+  const boardCols = $derived(boardDims[0]);
+  const boardRows = $derived(boardDims[1]);
+  const isLongRectangleBoard = $derived(boardCols / boardRows >= 5);
+  const rectangleBoardRotatedView = $derived(isLongRectangleBoard);
+  const rectangleDisplayRows = $derived(
+    rectangleBoardRotatedView ? boardCols : boardRows,
+  );
+  const rectangleDisplayCols = $derived(
+    rectangleBoardRotatedView ? boardRows : boardCols,
+  );
+  const isErrorStatus = $derived(
+    status.toLowerCase().includes('no completion') ||
+      status.toLowerCase().includes('cannot place'),
+  );
+  const isTripErrorStatus = $derived(
+    triplicationStatus.toLowerCase().includes('no completion') ||
+      triplicationStatus.toLowerCase().includes('cannot place'),
+  );
+  const showResetPrefixAction = $derived(
+    currentPrefixSolutions === 0 &&
+      !isAnimating &&
+      visiblePlacements.length > 0,
+  );
+  const usedNames = $derived(
+    new Set(rectangleBasePlacements.map((p) => p.name)),
+  );
+  const availablePieces = $derived(
+    PIECE_ORDER.filter((name) => !usedNames.has(name)),
+  );
+
+  $effect(() => {
+    if (selectedPiece && usedNames.has(selectedPiece)) {
+      selectedPiece = availablePieces[0] ?? null;
+    }
+  });
+
+  const transformed = $derived(
+    selectedPiece ? cellsForPose(selectedPiece, pose) : null,
+  );
+  const ghostPlacement = $derived.by(() => {
+    if (
+      !selectedPiece ||
+      !transformed ||
+      !rectangleHoverPointerPos ||
+      rectangleDragInFlight ||
+      rectangleDraggedPlacement ||
+      rectangleSnapAnimating ||
+      rectangleDraggedOriginPlacement
+    ) {
+      return null;
+    }
+    return {
+      name: selectedPiece,
+      cells: floatCellsAtPointerBarycenter(
+        transformed,
+        rectangleHoverPointerPos.row,
+        rectangleHoverPointerPos.col,
+      ),
+    };
+  });
+
+  const ghostValid = $derived.by(() => {
+    if (!selectedPiece || !transformed || !rectangleHoverPointerPos) {
+      return false;
+    }
+    const snapped = snappedPlacementAtPointerBarycenter(
+      selectedPiece,
+      transformed,
+      rectangleHoverPointerPos.row,
+      rectangleHoverPointerPos.col,
+    );
+    return (
+      inBoundsForBoard(snapped.cells) &&
+      canApplyPlacement(rectangleBasePlacements, snapped, boardRows, boardCols)
+    );
+  });
+
+  const ghostSnappedPlacement = $derived.by(() => {
+    if (
+      !selectedPiece ||
+      !transformed ||
+      !rectangleHoverPointerPos ||
+      rectangleDragInFlight ||
+      rectangleDraggedPlacement ||
+      rectangleSnapAnimating ||
+      rectangleDraggedOriginPlacement
+    ) {
+      return null;
+    }
+    return snappedPlacementAtPointerBarycenter(
+      selectedPiece,
+      transformed,
+      rectangleHoverPointerPos.row,
+      rectangleHoverPointerPos.col,
+    );
+  });
+
+  const ghostOverlapsPlacement = $derived(
+    ghostSnappedPlacement !== null &&
+      hasPlacementOverlap(ghostSnappedPlacement.cells, rectangleBasePlacements),
+  );
+
+  const showGhostSnapOutline = $derived(
+    ghostSnappedPlacement !== null &&
+      ghostValid &&
+      !ghostOverlapsPlacement &&
+      !rectangleDragInFlight &&
+      !rectangleDraggedOriginPlacement,
+  );
+
+  const rectangleSettleOutline = $derived.by(() => {
     if (rectanglePickerDragActive) {
       return [];
     }
@@ -187,143 +335,84 @@
     return rectangleGhostSnapOutline.map(([r, c]) =>
       toDisplayCell(r, c, boardRows, rectangleBoardRotatedView),
     );
-  })();
-  $: [boardCols, boardRows] = selectedBoardSize.split('x').map(Number) as [number, number];
-  $: isLongRectangleBoard = boardCols / boardRows >= 5;
-  $: rectangleBoardRotatedView = isLongRectangleBoard;
-  $: rectangleDisplayRows = rectangleBoardRotatedView ? boardCols : boardRows;
-  $: rectangleDisplayCols = rectangleBoardRotatedView ? boardRows : boardCols;
-  $: isErrorStatus =
-    status.toLowerCase().includes('no completion') ||
-    status.toLowerCase().includes('cannot place');
-  $: isTripErrorStatus =
-    triplicationStatus.toLowerCase().includes('no completion') ||
-    triplicationStatus.toLowerCase().includes('cannot place');
-  $: showResetPrefixAction = currentPrefixSolutions === 0 && !isAnimating && visiblePlacements.length > 0;
-  $: usedNames = new Set(rectangleBasePlacements.map((p) => p.name));
-  $: availablePieces = PIECE_ORDER.filter((name) => !usedNames.has(name));
-  $: if (selectedPiece && usedNames.has(selectedPiece)) {
-    selectedPiece = availablePieces[0] ?? null;
-  }
+  });
 
-  $: transformed = selectedPiece ? cellsForPose(selectedPiece, pose) : null;
-  $: ghostPlacement =
-    selectedPiece &&
-    transformed &&
-    rectangleHoverPointerPos &&
-    !rectangleDragInFlight &&
-    !rectangleDraggedPlacement &&
-    !rectangleSnapAnimating &&
-    !rectangleDraggedOriginPlacement
-      ? {
-          name: selectedPiece,
-          cells: floatCellsAtPointerBarycenter(
-            transformed,
-            rectangleHoverPointerPos.row,
-            rectangleHoverPointerPos.col,
-          ),
-        }
-      : null;
-
-  $: ghostValid =
-    selectedPiece !== null &&
-    transformed !== null &&
-    rectangleHoverPointerPos !== null &&
-    (() => {
-      const snapped = snappedPlacementAtPointerBarycenter(
-        selectedPiece,
-        transformed,
-        rectangleHoverPointerPos.row,
-        rectangleHoverPointerPos.col,
-      );
-      return (
-        inBoundsForBoard(snapped.cells) &&
-        canApplyPlacement(rectangleBasePlacements, snapped, boardRows, boardCols)
-      );
-    })();
-
-  $: ghostSnappedPlacement =
-    selectedPiece !== null &&
-    transformed !== null &&
-    rectangleHoverPointerPos !== null &&
-    !rectangleDragInFlight &&
-    !rectangleDraggedPlacement &&
-    !rectangleSnapAnimating &&
-    !rectangleDraggedOriginPlacement
-      ? snappedPlacementAtPointerBarycenter(
-          selectedPiece,
-          transformed,
-          rectangleHoverPointerPos.row,
-          rectangleHoverPointerPos.col,
-        )
-      : null;
-
-  $: ghostOverlapsPlacement =
-    ghostSnappedPlacement !== null &&
-    hasPlacementOverlap(ghostSnappedPlacement.cells, rectangleBasePlacements);
-
-  $: showGhostSnapOutline =
-    ghostSnappedPlacement !== null &&
-    ghostValid &&
-    !ghostOverlapsPlacement &&
-    !rectangleDragInFlight &&
-    !rectangleDraggedOriginPlacement;
-
-  $: rectangleTouchOverlayActive =
+  const rectangleTouchOverlayActive = $derived(
     useTouchLayout &&
-    activePane === 'rectangle' &&
-    touchViewMode === 'solver' &&
-    rectangleDragInFlight &&
-    (rectangleDragPointerType === 'touch' ||
-      rectanglePickerDrag?.pointerType === 'touch');
+      activePane === 'rectangle' &&
+      touchViewMode === 'solver' &&
+      rectangleDragInFlight &&
+      (rectangleDragPointerType === 'touch' ||
+        rectanglePickerDrag?.pointerType === 'touch'),
+  );
 
-  $: {
+  $effect(() => {
     rectangleTouchOverlayActive;
     rectangleDisplayRows;
     rectangleDisplayCols;
     rectangleBoardRotatedView;
     updateRectangleTouchOverlayStyle();
-  }
+  });
 
-  $: {
+  $effect(() => {
     if (rectanglePickerDrag && rectanglePickerPointerClient) {
       applyRectanglePickerDragPointer(
         rectanglePickerPointerClient.x,
         rectanglePickerPointerClient.y,
         true,
+        false,
       );
     }
-  }
+  });
 
-  $: {
-    setRectangleGhostSnapTarget(showGhostSnapOutline ? ghostSnappedPlacement.cells : []);
-  }
+  $effect(() => {
+    setRectangleGhostSnapTarget(
+      showGhostSnapOutline && ghostSnappedPlacement
+        ? ghostSnappedPlacement.cells
+        : [],
+    );
+  });
 
-  $: tripVisiblePlacements = tripPlacements.slice(0, tripPrefixCount);
-  $: tripRenderPlacements = tripDraggedPlacement
-    ? [...tripVisiblePlacements, tripDraggedPlacement]
-    : tripVisiblePlacements;
-  $: tripSettleOutline =
-    tripDraggedPlacement !== null ? tripDraggedPlacement.cells : [];
-  $: tripUsedNames = new Set(tripVisiblePlacements.map((p) => p.name));
-  $: tripAvailablePieces = triplicationProblem
-    ? triplicationProblem.selectedPieces.filter((name) => !tripUsedNames.has(name))
-    : [];
-  $: if (tripSelectedPiece && tripUsedNames.has(tripSelectedPiece)) {
-    tripSelectedPiece = tripAvailablePieces[0] ?? null;
-  }
-  $: tripTransformed = tripSelectedPiece ? cellsForPose(tripSelectedPiece, tripPose) : null;
-  $: tripGhostPlacement =
+  const tripVisiblePlacements = $derived(tripPlacements.slice(0, tripPrefixCount));
+  const tripRenderPlacements = $derived(
+    tripDraggedPlacement
+      ? [...tripVisiblePlacements, tripDraggedPlacement]
+      : tripVisiblePlacements,
+  );
+  const tripSettleOutline = $derived(
+    tripDraggedPlacement !== null ? tripDraggedPlacement.cells : [],
+  );
+  const tripUsedNames = $derived(new Set(tripVisiblePlacements.map((p) => p.name)));
+  const tripAvailablePieces = $derived(
+    triplicationProblem
+      ? triplicationProblem.selectedPieces.filter((name) => !tripUsedNames.has(name))
+      : [],
+  );
+  $effect(() => {
+    if (tripSelectedPiece && tripUsedNames.has(tripSelectedPiece)) {
+      tripSelectedPiece = tripAvailablePieces[0] ?? null;
+    }
+  });
+  const tripTransformed = $derived(
+    tripSelectedPiece ? cellsForPose(tripSelectedPiece, tripPose) : null,
+  );
+  const tripGhostPlacement = $derived(
     triplicationProblem && tripSelectedPiece && tripTransformed && tripHover && !tripDragActive
       ? {
           name: tripSelectedPiece,
           cells: placeAtAnchor(tripTransformed, tripHover.row, tripHover.col),
         }
-      : null;
-  $: tripGhostValid =
+      : null,
+  );
+  const tripGhostValid = $derived(
     !!triplicationProblem &&
-    !!tripGhostPlacement &&
-    canApplyTriplicationPlacement(triplicationProblem, tripVisiblePlacements, tripGhostPlacement as Placement);
+      !!tripGhostPlacement &&
+      canApplyTriplicationPlacement(
+        triplicationProblem,
+        tripVisiblePlacements,
+        tripGhostPlacement as Placement,
+      ),
+  );
 
   function onBoardSizeChange(event: Event): void {
     clearRectangleSnapTimers();
@@ -883,8 +972,11 @@
     clientX: number,
     clientY: number,
     clampToBoard: boolean,
+    storePointerClient = true,
   ): void {
-    rectanglePickerPointerClient = { x: clientX, y: clientY };
+    if (storePointerClient) {
+      rectanglePickerPointerClient = { x: clientX, y: clientY };
+    }
     const boardPosInside = rectangleBoardPosFromClient(clientX, clientY, false);
     const boardPos = boardPosInside ?? rectangleBoardPosFromClient(
       clientX,
@@ -1245,23 +1337,25 @@
   }
 
   function onBoardClick(
-    event: CustomEvent<{ row: number; col: number; x: number; y: number }>,
+    event: CustomEvent<{ row: number; col: number; x: number; y: number }> |
+      { row: number; col: number; x: number; y: number },
   ): void {
+    const detail = 'detail' in event ? event.detail : event;
     if (isRectangleLocked) {
       return;
     }
     const [row, col] = fromDisplayCell(
-      event.detail.row,
-      event.detail.col,
+      detail.row,
+      detail.col,
       boardRows,
       rectangleBoardRotatedView,
     );
     const clickPoint = pointForBoardEvent(
-      event.detail.x,
-      event.detail.y,
+      detail.x,
+      detail.y,
       rectangleBoardWrapEl,
-      event.detail.row,
-      event.detail.col,
+      detail.row,
+      detail.col,
       rectangleDisplayRows,
       rectangleDisplayCols,
     );
@@ -1287,7 +1381,13 @@
     }
   }
 
-  function onBoardDrop(event: CustomEvent<{ row: number; col: number } | null>): void {
+  function onBoardDrop(
+    event: CustomEvent<{ row: number; col: number } | null> |
+      { row: number; col: number } | null,
+  ): void {
+    const detail = event && typeof event === 'object' && 'detail' in event
+      ? event.detail
+      : event;
     if (isRectangleLocked) {
       return;
     }
@@ -1295,15 +1395,15 @@
       return;
     }
     rectangleHoverPointerPos = null;
-    if (!event.detail) {
+    if (!detail) {
       hover = null;
       finalizeRectangleRemoval(rectangleDraggedOriginPlacement);
       clearRectangleSnapTimers();
       return;
     }
     const [row, col] = fromDisplayCell(
-      event.detail.row,
-      event.detail.col,
+      detail.row,
+      detail.col,
       boardRows,
       rectangleBoardRotatedView,
     );
@@ -1331,10 +1431,12 @@
   }
 
   function onRectangleDragState(
-    event: CustomEvent<{ active: boolean; pointerType: string | null }>,
+    event: CustomEvent<{ active: boolean; pointerType: string | null }> |
+      { active: boolean; pointerType: string | null },
   ): void {
-    rectangleDragActive = event.detail.active;
-    rectangleDragPointerType = event.detail.pointerType;
+    const detail = 'detail' in event ? event.detail : event;
+    rectangleDragActive = detail.active;
+    rectangleDragPointerType = detail.pointerType;
     if (!rectangleDragActive) {
       rectangleHoverPointerPos = null;
       setRectangleGhostSnapTarget([]);
@@ -1517,11 +1619,17 @@
     }, 0);
   }
 
-  function onBoardHover(event: CustomEvent<{ row: number; col: number } | null>): void {
+  function onBoardHover(
+    event: CustomEvent<{ row: number; col: number } | null> |
+      { row: number; col: number } | null,
+  ): void {
+    const detail = event && typeof event === 'object' && 'detail' in event
+      ? event.detail
+      : event;
     if (isRectangleLocked) {
       return;
     }
-    if (!event.detail) {
+    if (!detail) {
       hover = null;
       rectanglePointerOverBoard = false;
       rectangleHoverPointerPos = null;
@@ -1532,8 +1640,8 @@
       return;
     }
     const [row, col] = fromDisplayCell(
-      event.detail.row,
-      event.detail.col,
+      detail.row,
+      detail.col,
       boardRows,
       rectangleBoardRotatedView,
     );
@@ -1545,17 +1653,21 @@
   }
 
   function onRectanglePointerMove(
-    event: CustomEvent<{ row: number; col: number } | null>,
+    event: CustomEvent<{ row: number; col: number } | null> |
+      { row: number; col: number } | null,
   ): void {
-    if (!event.detail) {
+    const detail = event && typeof event === 'object' && 'detail' in event
+      ? event.detail
+      : event;
+    if (!detail) {
       if (!rectangleDragActive) {
         rectangleHoverPointerPos = null;
       }
       return;
     }
     const [row, col] = fromDisplayCell(
-      event.detail.row,
-      event.detail.col,
+      detail.row,
+      detail.col,
       boardRows,
       rectangleBoardRotatedView,
     );
@@ -1743,27 +1855,37 @@
     return true;
   }
 
-  function onTripBoardHover(event: CustomEvent<{ row: number; col: number } | null>): void {
+  function onTripBoardHover(
+    event: CustomEvent<{ row: number; col: number } | null> |
+      { row: number; col: number } | null,
+  ): void {
+    const detail = event && typeof event === 'object' && 'detail' in event
+      ? event.detail
+      : event;
     if (isTriplicationLocked) {
       return;
     }
-    if (!event.detail) {
+    if (!detail) {
       tripHover = null;
       return;
     }
-    tripHover = isOccupiedCell(tripVisiblePlacements, event.detail.row, event.detail.col) ? null : event.detail;
+    tripHover = isOccupiedCell(tripVisiblePlacements, detail.row, detail.col)
+      ? null
+      : detail;
   }
 
   function onTripBoardClick(
-    event: CustomEvent<{ row: number; col: number; x: number; y: number }>,
+    event: CustomEvent<{ row: number; col: number; x: number; y: number }> |
+      { row: number; col: number; x: number; y: number },
   ): void {
+    const detail = 'detail' in event ? event.detail : event;
     if (isTriplicationLocked || !triplicationProblem) {
       return;
     }
-    const { row, col } = event.detail;
+    const { row, col } = detail;
     const clickPoint = pointForBoardEvent(
-      event.detail.x,
-      event.detail.y,
+      detail.x,
+      detail.y,
       tripBoardWrapEl,
       row,
       col,
@@ -1782,16 +1904,22 @@
     }
   }
 
-  function onTripBoardDrop(event: CustomEvent<{ row: number; col: number } | null>): void {
+  function onTripBoardDrop(
+    event: CustomEvent<{ row: number; col: number } | null> |
+      { row: number; col: number } | null,
+  ): void {
+    const detail = event && typeof event === 'object' && 'detail' in event
+      ? event.detail
+      : event;
     if (isTriplicationLocked || !triplicationProblem) {
       return;
     }
-    if (!event.detail) {
+    if (!detail) {
       tripDraggedPlacement = null;
       return;
     }
     tripDraggedPlacement = null;
-    const { row, col } = event.detail;
+    const { row, col } = detail;
     if (isOccupiedCell(tripVisiblePlacements, row, col)) {
       tripHover = null;
       return;
@@ -1803,8 +1931,11 @@
     commitTripPlacement({ name: tripSelectedPiece, cells: placeAtAnchor(tripTransformed, row, col) });
   }
 
-  function onTripDragState(event: CustomEvent<{ active: boolean }>): void {
-    tripDragActive = event.detail.active;
+  function onTripDragState(
+    event: CustomEvent<{ active: boolean }> | { active: boolean },
+  ): void {
+    const detail = 'detail' in event ? event.detail : event;
+    tripDragActive = detail.active;
     if (!tripDragActive) {
       tripDraggedPlacement = null;
     }
@@ -2126,7 +2257,7 @@
   }
 </script>
 
-<svelte:window on:keydown={onKey} on:click={closeRepoLinkOnOutsideClick} />
+<svelte:window onkeydown={onKey} onclick={closeRepoLinkOnOutsideClick} />
 
 <main class:touch-mode={useTouchLayout} class:long-rect-mode={activePane === 'rectangle' && isLongRectangleBoard}>
   {#if statusFlight}
@@ -2144,7 +2275,7 @@
       <button
         class="repo-icon-btn"
         class:active={showRepoLink}
-        on:click={toggleRepoLink}
+        onclick={toggleRepoLink}
         aria-label="Toggle GitHub repo link"
         title="Project repository"
       >
@@ -2167,7 +2298,7 @@
     <button
       class="tab-btn"
       class:active={activePane === 'rectangle'}
-      on:click={() => {
+      onclick={() => {
         activePane = 'rectangle';
         touchViewMode = 'solver';
       }}
@@ -2177,7 +2308,7 @@
     <button
       class="tab-btn"
       class:active={activePane === 'triplication'}
-      on:click={() => {
+      onclick={() => {
         activePane = 'triplication';
         touchViewMode = 'solver';
       }}
@@ -2189,7 +2320,7 @@
         bind:this={solvedToggleEl}
         class="tab-btn touch-solved-toggle"
         class:active={touchViewMode === 'solved'}
-        on:click={toggleTouchViewMode}
+        onclick={toggleTouchViewMode}
       >
         Solver / Solved #{activeSolvedCount}
       </button>
@@ -2204,7 +2335,7 @@
         <h2>Rectangle Solver</h2>
         <label class="board-size-select">
           <span>Size</span>
-          <select value={selectedBoardSize} on:change={onBoardSizeChange}>
+          <select value={selectedBoardSize} onchange={onBoardSizeChange}>
             {#each boardSizeOptions as size}
               <option value={size}>{size}</option>
             {/each}
@@ -2216,7 +2347,7 @@
         <button
           class="status-action"
           class:status-action-hidden={!showResetPrefixAction}
-          on:click={onResetStatusActionClick}
+          onclick={onResetStatusActionClick}
           disabled={!showResetPrefixAction}
           aria-hidden={!showResetPrefixAction}
           tabindex={showResetPrefixAction ? 0 : -1}
@@ -2238,8 +2369,8 @@
           class="piece-btn"
           class:selected={selectedPiece === name}
           class:used={disabled}
-          on:click={() => selectPiece(name)}
-          on:pointerdown={(event) => startPickerDrag(event, name)}
+          onclick={() => selectPiece(name)}
+          onpointerdown={(event) => startPickerDrag(event, name)}
           disabled={disabled || isRectangleLocked}
           aria-label={`Select ${name}`}
         >
@@ -2259,12 +2390,12 @@
     </div>
 
     <div class="toolbar">
-      <button on:click={rotateLeft} disabled={!selectedPiece}>Rotate ⟲</button>
-      <button on:click={rotateRight} disabled={!selectedPiece}>Rotate ⟳</button>
-      <button on:click={flipPiece} disabled={!selectedPiece}>Flip ↔</button>
-      <button on:click={resetPose} disabled={!selectedPiece}>Reset</button>
-      <button class="solve" on:click={solveNow} disabled={isRectangleLocked}>Solve</button>
-      <button class="solve" on:click={animateSolve} disabled={rectangleSolvedTransitioning}>
+      <button onclick={rotateLeft} disabled={!selectedPiece}>Rotate ⟲</button>
+      <button onclick={rotateRight} disabled={!selectedPiece}>Rotate ⟳</button>
+      <button onclick={flipPiece} disabled={!selectedPiece}>Flip ↔</button>
+      <button onclick={resetPose} disabled={!selectedPiece}>Reset</button>
+      <button class="solve" onclick={solveNow} disabled={isRectangleLocked}>Solve</button>
+      <button class="solve" onclick={animateSolve} disabled={rectangleSolvedTransitioning}>
         {isAnimating ? 'Stop Animation' : 'Animate Solve'}
       </button>
       {#if !useTouchLayout}
@@ -2345,11 +2476,11 @@
               }
             : null}
         interactive={!isRectangleLocked}
-          on:cellhover={onBoardHover}
-          on:cellclick={onBoardClick}
-          on:celldrop={onBoardDrop}
-          on:dragstate={onRectangleDragState}
-          on:pointermove={onRectanglePointerMove}
+          cellhover={onBoardHover}
+          cellclick={onBoardClick}
+          celldrop={onBoardDrop}
+          dragstate={onRectangleDragState}
+          pointermove={onRectanglePointerMove}
         />
     </div>
     {#if rectangleTouchOverlayActive}
@@ -2436,7 +2567,7 @@
         max={placements.length}
         value={prefixCount}
         disabled={isRectangleLocked}
-        on:input={onSliderInput}
+        oninput={onSliderInput}
       />
       <span>{placements.length} total in snapshot</span>
     </div>
@@ -2451,7 +2582,7 @@
         step="1"
         value={speedSlider}
         disabled={isRectangleLocked}
-        on:input={onInitialSpeedInput}
+        oninput={onInitialSpeedInput}
       />
       <span>linear slider, exponential speed mapping</span>
     </div>
@@ -2471,7 +2602,7 @@
       <div class="solved-list">
         {#each solvedSolutions as solution, idx}
           {@const rotatedSolutionView = solution.cols / solution.rows >= 5}
-          <button class="solved-card" on:click={() => importSolved(idx)} disabled={isRectangleLocked}>
+          <button class="solved-card" onclick={() => importSolved(idx)} disabled={isRectangleLocked}>
             <div class="solved-index">Rectangle {idx + 1}</div>
             <div
               class="mini-board"
@@ -2496,7 +2627,7 @@
     <header>
       <div class="solver-title-row">
         <h2>Triplication Solver</h2>
-        <button class="solve" on:click={newTriplicationProblem} disabled={isGeneratingTriplication}>
+        <button class="solve" onclick={newTriplicationProblem} disabled={isGeneratingTriplication}>
           New Triplication Problem
         </button>
       </div>
@@ -2516,7 +2647,7 @@
             class="piece-btn"
             class:selected={tripSelectedPiece === name}
             class:used={disabled}
-            on:click={() => selectTripPiece(name)}
+            onclick={() => selectTripPiece(name)}
             disabled={disabled || isTriplicationLocked}
             aria-label={`Select ${name}`}
           >
@@ -2536,12 +2667,12 @@
       </div>
 
       <div class="toolbar">
-        <button on:click={tripRotateLeft} disabled={!tripSelectedPiece}>Rotate ⟲</button>
-        <button on:click={tripRotateRight} disabled={!tripSelectedPiece}>Rotate ⟳</button>
-        <button on:click={tripFlip} disabled={!tripSelectedPiece}>Flip ↔</button>
-        <button on:click={tripResetPose} disabled={!tripSelectedPiece}>Reset</button>
-        <button class="solve" on:click={solveTriplicationNow} disabled={isTriplicationLocked}>Solve</button>
-        <button class="solve" on:click={animateTriplicationSolve}>
+        <button onclick={tripRotateLeft} disabled={!tripSelectedPiece}>Rotate ⟲</button>
+        <button onclick={tripRotateRight} disabled={!tripSelectedPiece}>Rotate ⟳</button>
+        <button onclick={tripFlip} disabled={!tripSelectedPiece}>Flip ↔</button>
+        <button onclick={tripResetPose} disabled={!tripSelectedPiece}>Reset</button>
+        <button class="solve" onclick={solveTriplicationNow} disabled={isTriplicationLocked}>Solve</button>
+        <button class="solve" onclick={animateTriplicationSolve}>
           {tripIsAnimating ? 'Stop Animation' : 'Animate Solve'}
         </button>
         {#if !useTouchLayout}
@@ -2592,10 +2723,10 @@
           maskCells={triplicationProblem.maskCells}
           ghost={null}
           interactive={!isTriplicationLocked}
-          on:cellhover={onTripBoardHover}
-          on:cellclick={onTripBoardClick}
-          on:celldrop={onTripBoardDrop}
-          on:dragstate={onTripDragState}
+          cellhover={onTripBoardHover}
+          cellclick={onTripBoardClick}
+          celldrop={onTripBoardDrop}
+          dragstate={onTripDragState}
         />
       </div>
 
@@ -2608,7 +2739,7 @@
           max={tripPlacements.length}
           value={tripPrefixCount}
           disabled={isTriplicationLocked}
-          on:input={onTripSliderInput}
+          oninput={onTripSliderInput}
         />
         <span>{tripPlacements.length} total in snapshot</span>
       </div>
@@ -2623,7 +2754,7 @@
           step="1"
           value={tripSpeedSlider}
           disabled={isTriplicationLocked}
-          on:input={onTripInitialSpeedInput}
+          oninput={onTripInitialSpeedInput}
         />
         <span>linear slider, exponential speed mapping</span>
       </div>
@@ -2647,7 +2778,7 @@
     {:else}
       <div class="solved-list">
         {#each tripSolvedSolutions as solution, idx}
-          <button class="solved-card" on:click={() => importTripSolved(idx)} disabled={isTriplicationLocked}>
+          <button class="solved-card" onclick={() => importTripSolved(idx)} disabled={isTriplicationLocked}>
             <div class="solved-index">Triplication {idx + 1}</div>
             <div class="mini-board" style={`--board-ratio:${solution.problem.cols / solution.problem.rows}`}>
               <BoardWebGL

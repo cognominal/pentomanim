@@ -24,6 +24,21 @@
   support.
 - Remote functions support is optional and only needed when it helps the
   feature at hand.
+- Treat Svelte 4 syntax as legacy tech debt and migrate it on sight.
+- Svelte 5 specifics:
+  - Use runes (`$state`, `$derived`, `$effect`) instead of `$:` reactive
+    labels.
+  - Example: replace `$: ghostPlacement = ...` with
+    `const ghostPlacement = $derived(...)` (or `$derived.by(...)` for
+    multi-step logic).
+  - Use `$props()` instead of `export let`.
+  - Prefer callback props over `createEventDispatcher`.
+  - Use event attributes like `onclick={...}` instead of `on:click={...}`.
+  - Do not introduce new `$$props` or `$$restProps` usage.
+- Keep app code on Svelte 5 (`svelte@^5`) and compatible Vite plugin
+  versions.
+- Before shipping, verify there are no Svelte 4-style patterns left in
+  `*.svelte` files.
 
 ## GitHub Comment Formatting
 - When posting comments with `gh issue comment`, preserve real newlines.
