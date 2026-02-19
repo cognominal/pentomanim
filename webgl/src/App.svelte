@@ -318,9 +318,6 @@
   );
 
   const rectangleSettleOutline = $derived.by(() => {
-    if (rectanglePickerDragActive) {
-      return [];
-    }
     if (rectangleDraggedOriginPlacement || rectangleDragInFlight) {
       if (rectangleDraggedPlacement !== null && rectangleDraggedPlacementValid) {
         return rectangleDraggedPlacement.cells.map(([r, c]) =>
@@ -1074,6 +1071,7 @@
   }
 
   function startPickerDrag(event: PointerEvent, piece: PieceName): void {
+    flushPendingRectangleRemoval();
     const pointerType = event.pointerType || 'mouse';
     if (isRectangleLocked) {
       return;
@@ -1289,6 +1287,16 @@
     requestSolverPrefixCount(clonePlacements(placements), boardRows, boardCols);
   }
 
+  function flushPendingRectangleRemoval(): void {
+    if (
+      rectangleDraggedOriginPlacement &&
+      !rectangleDragActive &&
+      !rectangleSnapAnimating
+    ) {
+      finalizeRectangleRemoval(rectangleDraggedOriginPlacement);
+    }
+  }
+
   function placementAtCell(row: number, col: number): Placement | null {
     if (!selectedPiece || !transformed) {
       return null;
@@ -1340,6 +1348,7 @@
     event: CustomEvent<{ row: number; col: number; x: number; y: number }> |
       { row: number; col: number; x: number; y: number },
   ): void {
+    flushPendingRectangleRemoval();
     const detail = 'detail' in event ? event.detail : event;
     if (isRectangleLocked) {
       return;
