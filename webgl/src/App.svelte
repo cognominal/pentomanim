@@ -42,6 +42,7 @@
     pointerId: number;
     pointerType: string;
     piece: PieceName;
+    enteredBoard: boolean;
   };
 
   const isTouchDevice =
@@ -890,7 +891,12 @@
       clampToBoard,
     );
     const overlayPos = rectangleOverlayPosFromClient(clientX, clientY);
-    const visualPos = boardPosInside ?? overlayPos;
+    if (boardPosInside && rectanglePickerDrag) {
+      rectanglePickerDrag.enteredBoard = true;
+    }
+    const visualPos =
+      boardPosInside ??
+      (rectanglePickerDrag?.enteredBoard ? boardPos : overlayPos);
     if (selectedPiece && transformed && visualPos) {
       rectangleFloatingPlacement = {
         name: selectedPiece,
@@ -989,6 +995,7 @@
       pointerId: event.pointerId,
       pointerType,
       piece,
+      enteredBoard: false,
     };
     rectangleDragPointerType = pointerType;
     rectangleDragActive = true;
