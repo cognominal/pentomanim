@@ -34,7 +34,8 @@ bun run preview
 - Rectangle board sizes: `20x3`, `15x4`, `12x5`, `10x6`.
 - Square-cell WebGL boards with piece boundaries.
 - Piece picker (`F I L P N T U V W X Y Z`) with touch and desktop variants.
-- Rotate/flip/reset active piece and transformed active preview.
+- Rotate/flip/reset active piece; transform is shown directly on the
+  selected picker tile.
 - Ghost placement preview on board.
 - Manual placement/removal by tapping/clicking cells.
 - Touch drag from picker to board is supported.
@@ -42,11 +43,9 @@ bun run preview
 - During picker -> board touch drag:
   - the board does not render the dragged piece directly,
   - a touch overlay shows a live ghost moving toward the board.
-- During picker/selected-preview touch drag:
+- During picker touch drag:
   - the ghost barycenter tracks the touched position in the overlay,
   - the overlay is semi-transparent for visibility.
-- The same touch overlay ghost behavior applies when dragging from the
-  selected piece preview.
 - During board -> board touch drag:
   - a dynamic board-replica overlay is shown between the app tab bar and
     the board (excluding both),
@@ -65,6 +64,7 @@ bun run preview
 ## Controls
 - Desktop:
   - Select piece: click piece tile or press piece letter.
+  - Selected picker tile reflects current rotate/flip state.
   - Rotate right: `R`
   - Rotate left: `Shift+R`
   - Flip: `X`
@@ -72,6 +72,7 @@ bun run preview
   - Place/remove: click board cells.
 - Touch:
   - Select piece from picker.
+  - Selected picker tile reflects current rotate/flip state.
   - Drag piece from picker to board.
   - Drag placed piece inside board.
   - Place/remove: tap board cells.
