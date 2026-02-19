@@ -163,6 +163,9 @@
   $: rectangleDragInFlight =
     rectangleDragActive || rectanglePickerDrag !== null;
   $: rectanglePickerDragActive = rectanglePickerDrag !== null;
+  $: rectanglePickerDragEnteredBoard = rectanglePickerDrag?.enteredBoard ?? false;
+  $: rectanglePickerDragInOverlay =
+    rectanglePickerDragActive && !rectanglePickerDragEnteredBoard;
   $: rectanglePickerDragOutsideBoard =
     rectanglePickerDragActive && !rectanglePointerOverBoard;
   $: rectangleBasePlacements = rectangleDragOriginName
@@ -2310,7 +2313,7 @@
         cols={rectangleDisplayCols}
         placements={toDisplayPlacements(rectangleRenderPlacements, boardRows, rectangleBoardRotatedView)}
         settleOutlineCells={rectangleSettleOutline}
-        floatingPlacement={!rectanglePickerDragActive &&
+        floatingPlacement={!rectanglePickerDragInOverlay &&
         rectangleFloatingPlacement &&
         !(rectangleDragInFlight &&
           rectangleDraggedOriginPlacement &&
@@ -2322,7 +2325,7 @@
               ),
             }
           : null}
-        ghost={!rectanglePickerDragActive &&
+        ghost={!rectanglePickerDragInOverlay &&
         rectangleDragInFlight &&
         rectangleDraggedOriginPlacement &&
         rectangleFloatingPlacement &&
@@ -2352,7 +2355,7 @@
         />
     </div>
     {#if rectangleTouchOverlayActive}
-      {#if rectanglePickerDragActive}
+      {#if rectanglePickerDragInOverlay}
         <div
           class="touch-board-overlay touch-board-overlay-picker"
           style={rectangleTouchOverlayStyle}
@@ -2376,6 +2379,8 @@
             interactive={false}
           />
         </div>
+      {:else if rectanglePickerDragActive}
+        <div class="touch-board-overlay" style={rectangleTouchOverlayStyle}></div>
       {:else}
         <div class="touch-board-overlay" style={rectangleTouchOverlayStyle}>
           <BoardWebGL
