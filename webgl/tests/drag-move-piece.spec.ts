@@ -29,6 +29,24 @@ async function boardCanvas(page: Page): Promise<Locator> {
   return canvas;
 }
 
+async function pointForBoardWrapCell(
+  page: Page,
+  row: number,
+  col: number,
+): Promise<{ x: number; y: number }> {
+  const wrap = page.locator('section.solver-pane .board-wrap').first();
+  await expect(wrap).toBeVisible();
+  await wrap.scrollIntoViewIfNeeded();
+  const box = await wrap.boundingBox();
+  if (!box) {
+    throw new Error('Board wrap has no bounding box');
+  }
+  return {
+    x: box.x + ((col + 0.5) * box.width) / BOARD_COLS,
+    y: box.y + ((row + 0.5) * box.height) / BOARD_ROWS,
+  };
+}
+
 async function pointForCell(page: Page, row: number, col: number): Promise<{ x: number; y: number }> {
   const canvas = await boardCanvas(page);
   const box = await canvas.boundingBox();
@@ -59,7 +77,7 @@ async function dragCellWithPointerEvents(
 ): Promise<void> {
   const canvas = await boardCanvas(page);
   const from = await pointForCell(page, fromCell[0], fromCell[1]);
-  const to = await pointForCell(page, toCell[0], toCell[1]);
+  const to = await pointForBoardWrapCell(page, toCell[0], toCell[1]);
   const pointerId = pointerType === 'touch' ? 11 : 1;
 
   await canvas.dispatchEvent('pointerdown', {
@@ -162,6 +180,71 @@ async function dragFromPickerToBoardTouch(
   );
 }
 
+async function dragFromPickerToBoardMouse(
+  page: Page,
+  piece: string,
+  toCell: [number, number],
+): Promise<void> {
+  const picker = page.getByRole('button', { name: `Select ${piece}` }).first();
+  await expect(picker).toBeVisible();
+  const pickerBox = await picker.boundingBox();
+  if (!pickerBox) {
+    throw new Error('Picker button has no bounding box');
+  }
+  const from = {
+    x: pickerBox.x + pickerBox.width / 2,
+    y: pickerBox.y + pickerBox.height / 2,
+  };
+  const to = await pointForCell(page, toCell[0], toCell[1]);
+  await picker.dispatchEvent('pointerdown', {
+    pointerId: 44,
+    pointerType: 'mouse',
+    button: 0,
+    buttons: 1,
+    clientX: from.x,
+    clientY: from.y,
+    bubbles: true,
+    composed: true,
+    isPrimary: true,
+  });
+  await page.evaluate(
+    ({ x, y }) => {
+      window.dispatchEvent(
+        new PointerEvent('pointermove', {
+          pointerId: 44,
+          pointerType: 'mouse',
+          button: 0,
+          buttons: 1,
+          clientX: x,
+          clientY: y,
+          bubbles: true,
+          composed: true,
+          isPrimary: true,
+        }),
+      );
+    },
+    { x: to.x, y: to.y },
+  );
+  await page.evaluate(
+    ({ x, y }) => {
+      window.dispatchEvent(
+        new PointerEvent('pointerup', {
+          pointerId: 44,
+          pointerType: 'mouse',
+          button: 0,
+          buttons: 0,
+          clientX: x,
+          clientY: y,
+          bubbles: true,
+          composed: true,
+          isPrimary: true,
+        }),
+      );
+    },
+    { x: to.x, y: to.y },
+  );
+}
+
 async function dragCellWithMouse(
   page: Page,
   fromCell: [number, number],
@@ -226,7 +309,7 @@ test('touch drag from picker uses previewed orientation', async ({ page }, testI
 
   await page.getByRole('button', { name: 'Rotate ⟳' }).click();
   const rotated = cellsForPose('F', { rotation: 1, flipped: false });
-  const anchor: [number, number] = [1, 2];
+  const anchor: [number, number] = [0, 6];
   const dropCell = clickCellForAnchor(anchor, rotated);
   await dragFromPickerToBoardTouch(page, 'F', [dropCell[0], dropCell[1]]);
   await expect(page.locator('input#fixed')).toHaveValue('1');
@@ -234,6 +317,18 @@ test('touch drag from picker uses previewed orientation', async ({ page }, testI
   const occupiedCell = placeAtAnchor(rotated, anchor[0], anchor[1])[0];
   await tapCell(page, occupiedCell[0], occupiedCell[1]);
   await expect(page.locator('input#fixed')).toHaveValue('0');
+});
+
+test('click drag from picker starts without preselect click', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'click', 'This test runs in click project only.');
+  await page.goto('/');
+  await expect(page.getByRole('heading', { name: 'Rectangle Solver' })).toBeVisible();
+  await page.locator('label.board-size-select select').selectOption('12x5');
+  const anchor: [number, number] = [1, 1];
+  const dropCell = clickCellForAnchor(anchor, PIECES.F);
+  await dragFromPickerToBoardMouse(page, 'F', [dropCell[0], dropCell[1]]);
+  await expect(page.locator('input#fixed')).toHaveValue('1');
+  await expect(page.locator('header .status-row p')).toContainText('F placed.');
 });
 
 test('click on placed piece removes it without drag', async ({ page }, testInfo) => {

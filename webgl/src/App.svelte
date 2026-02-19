@@ -1074,8 +1074,8 @@
   }
 
   function startPickerDrag(event: PointerEvent, piece: PieceName): void {
-    const pointerType = event.pointerType || 'touch';
-    if (isRectangleLocked || pointerType !== 'touch') {
+    const pointerType = event.pointerType || 'mouse';
+    if (isRectangleLocked) {
       return;
     }
     event.preventDefault();
