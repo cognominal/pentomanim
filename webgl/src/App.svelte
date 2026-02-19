@@ -272,7 +272,6 @@
     activePane === 'rectangle' &&
     touchViewMode === 'solver' &&
     rectangleDragInFlight &&
-    (!rectanglePickerDragActive || rectanglePickerDragOutsideBoard) &&
     (rectangleDragPointerType === 'touch' ||
       rectanglePickerDrag?.pointerType === 'touch');
 
@@ -2304,7 +2303,7 @@
         cols={rectangleDisplayCols}
         placements={toDisplayPlacements(rectangleRenderPlacements, boardRows, rectangleBoardRotatedView)}
         settleOutlineCells={rectangleSettleOutline}
-        floatingPlacement={!rectanglePickerDragOutsideBoard &&
+        floatingPlacement={!rectanglePickerDragActive &&
         rectangleFloatingPlacement &&
         !(rectangleDragInFlight &&
           rectangleDraggedOriginPlacement &&
@@ -2316,7 +2315,7 @@
               ),
             }
           : null}
-        ghost={!rectanglePickerDragOutsideBoard &&
+        ghost={!rectanglePickerDragActive &&
         rectangleDragInFlight &&
         rectangleDraggedOriginPlacement &&
         rectangleFloatingPlacement &&
@@ -2346,7 +2345,7 @@
         />
     </div>
     {#if rectangleTouchOverlayActive}
-      {#if rectanglePickerDragOutsideBoard}
+      {#if rectanglePickerDragActive}
         <div
           class="touch-board-overlay touch-board-overlay-picker"
           style={rectangleTouchOverlayStyle}
