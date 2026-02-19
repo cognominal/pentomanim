@@ -70,9 +70,7 @@
   let useTouchLayout =
     isTouchDevice ||
     (typeof window !== 'undefined' && window.innerWidth <= COMPACT_LAYOUT_MAX_WIDTH);
-  let status = useTouchLayout
-    ? 'Pick a piece and tap the board to place it.'
-    : 'Pick a piece and click the board to place it.';
+  let status = 'Pick a piece and drag it to the board.';
   let currentPrefixSolutions: number | null = null;
   let isAnimating = false;
   let animationTimer: ReturnType<typeof setInterval> | null = null;
