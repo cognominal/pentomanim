@@ -2222,7 +2222,10 @@
     <div class="piece-bank">
       {#each PIECE_ORDER as name}
         {@const disabled = usedNames.has(name)}
-        {@const shape = pieceCells(name)}
+        {@const shape =
+          selectedPiece === name && transformed
+            ? transformed
+            : pieceCells(name)}
         {@const dims = bounds(shape)}
         <button
           class="piece-btn"
@@ -2268,37 +2271,6 @@
         </span>
       {/if}
       {#if useTouchLayout}
-        <div class="touch-selected-row">
-          <span class="pose-readout touch-selected-readout">
-            selected:
-            {#if selectedPiece}
-              {selectedPiece} • r{pose.rotation * 90} • {pose.flipped ? 'f' : 'n'}
-            {:else}
-              none
-            {/if}
-          </span>
-          <span class="touch-selected-shape">
-            <span
-              class="touch-selected-drag-proxy"
-              on:pointerdown={(event) => selectedPiece && startPickerDrag(event, selectedPiece)}
-            >
-            {#if selectedPiece && transformed}
-              {@const touchDims = bounds(transformed)}
-              <span
-                class="mini touch-selected-mini"
-                style={`--rows:${touchDims.rows};--cols:${touchDims.cols};--c:${PIECE_COLORS[selectedPiece]}`}
-                aria-hidden="true"
-              >
-                {#each transformed as [r, c]}
-                  <span class="cell" style={`grid-row:${r + 1};grid-column:${c + 1}`}></span>
-                {/each}
-              </span>
-            {:else}
-              <span class="touch-selected-placeholder" aria-hidden="true"></span>
-            {/if}
-            </span>
-          </span>
-        </div>
         <span class="pose-readout">tap: select piece, tap board: place/remove</span>
       {:else}
         <span class="pose-readout">
@@ -2526,7 +2498,10 @@
       <div class="piece-bank">
         {#each triplicationProblem.selectedPieces as name}
           {@const disabled = tripUsedNames.has(name)}
-          {@const shape = pieceCells(name)}
+          {@const shape =
+            tripSelectedPiece === name && tripTransformed
+              ? tripTransformed
+              : pieceCells(name)}
           {@const dims = bounds(shape)}
           <button
             class="piece-btn"
@@ -2571,33 +2546,6 @@
           </span>
         {/if}
         {#if useTouchLayout}
-          <div class="touch-selected-row">
-            <span class="pose-readout touch-selected-readout">
-              selected:
-              {#if tripSelectedPiece}
-                {tripSelectedPiece} • r{tripPose.rotation * 90} •
-                {tripPose.flipped ? 'f' : 'n'}
-              {:else}
-                none
-              {/if}
-            </span>
-            <span class="touch-selected-shape">
-              {#if tripSelectedPiece && tripTransformed}
-                {@const touchTripDims = bounds(tripTransformed)}
-                <span
-                  class="mini touch-selected-mini"
-                  style={`--rows:${touchTripDims.rows};--cols:${touchTripDims.cols};--c:${PIECE_COLORS[tripSelectedPiece]}`}
-                  aria-hidden="true"
-                >
-                  {#each tripTransformed as [r, c]}
-                    <span class="cell" style={`grid-row:${r + 1};grid-column:${c + 1}`}></span>
-                  {/each}
-                </span>
-              {:else}
-                <span class="touch-selected-placeholder" aria-hidden="true"></span>
-              {/if}
-            </span>
-          </div>
           <span class="pose-readout">tap: select piece, tap board: place/remove</span>
         {:else}
           <span class="pose-readout">
