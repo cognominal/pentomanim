@@ -58,7 +58,7 @@
   const SOLVED_TRANSITION_MS = 2000;
   const STATUS_FLIGHT_MS = 1000;
 
-  let selectedPiece = $state<PieceName | null>('F');
+  let selectedPiece = $state<PieceName | null>(null);
   let selectedBoardSize = $state<(typeof boardSizeOptions)[number]>('10x6');
   let activePane = $state<(typeof paneOptions)[number]>('rectangle');
   let touchViewMode = $state<(typeof touchViewOptions)[number]>('solver');
@@ -196,6 +196,7 @@
   const rectanglePickerDragOutsideBoard = $derived(
     rectanglePickerDragActive && !rectanglePointerOverBoard,
   );
+  const rectangleAllowsHoverPlacement = $derived(isTouchDevice);
   const rectangleBasePlacements = $derived(
     rectangleDragOriginName
       ? visiblePlacements.filter((p) => p.name !== rectangleDragOriginName)
@@ -210,7 +211,9 @@
   const boardCols = $derived(boardDims[0]);
   const boardRows = $derived(boardDims[1]);
   const isLongRectangleBoard = $derived(boardCols / boardRows >= 5);
-  const rectangleBoardRotatedView = $derived(isLongRectangleBoard);
+  const rectangleBoardRotatedView = $derived(
+    isLongRectangleBoard && useTouchLayout,
+  );
   const rectangleDisplayRows = $derived(
     rectangleBoardRotatedView ? boardCols : boardRows,
   );
@@ -233,21 +236,12 @@
   const usedNames = $derived(
     new Set(rectangleBasePlacements.map((p) => p.name)),
   );
-  const availablePieces = $derived(
-    PIECE_ORDER.filter((name) => !usedNames.has(name)),
-  );
-
-  $effect(() => {
-    if (selectedPiece && usedNames.has(selectedPiece)) {
-      selectedPiece = availablePieces[0] ?? null;
-    }
-  });
-
   const transformed = $derived(
     selectedPiece ? cellsForPose(selectedPiece, pose) : null,
   );
   const ghostPlacement = $derived.by(() => {
     if (
+      !rectangleAllowsHoverPlacement ||
       !selectedPiece ||
       !transformed ||
       !rectangleHoverPointerPos ||
@@ -269,7 +263,12 @@
   });
 
   const ghostValid = $derived.by(() => {
-    if (!selectedPiece || !transformed || !rectangleHoverPointerPos) {
+    if (
+      !rectangleAllowsHoverPlacement ||
+      !selectedPiece ||
+      !transformed ||
+      !rectangleHoverPointerPos
+    ) {
       return false;
     }
     const snapped = snappedPlacementAtPointerBarycenter(
@@ -286,6 +285,7 @@
 
   const ghostSnappedPlacement = $derived.by(() => {
     if (
+      !rectangleAllowsHoverPlacement ||
       !selectedPiece ||
       !transformed ||
       !rectangleHoverPointerPos ||
@@ -335,11 +335,11 @@
   });
 
   const rectangleTouchOverlayActive = $derived(
-    useTouchLayout &&
-      activePane === 'rectangle' &&
-      touchViewMode === 'solver' &&
+    activePane === 'rectangle' &&
+      (!useTouchLayout || touchViewMode === 'solver') &&
       rectangleDragInFlight &&
-      (rectangleDragPointerType === 'touch' ||
+      (rectanglePickerDragActive ||
+        rectangleDragPointerType === 'touch' ||
         rectanglePickerDrag?.pointerType === 'touch'),
   );
 
@@ -419,7 +419,7 @@
     placements = [];
     prefixCount = 0;
     hover = null;
-    selectedPiece = 'F';
+    selectedPiece = null;
     solvedSolutions = [];
     currentPrefixSolutions = null;
     activeSolverCountRequestId = -1;
@@ -459,6 +459,13 @@
     }
     selectedPiece = name;
     resetPose();
+  }
+
+  function onPickerPieceClick(name: PieceName): void {
+    if (!useTouchLayout) {
+      return;
+    }
+    selectPiece(name);
   }
 
   function truncateToPrefix(): void {
@@ -778,7 +785,7 @@
     prefixCount = 0;
     hover = null;
     rectangleHoverPointerPos = null;
-    selectedPiece = 'F';
+    selectedPiece = null;
     resetPose();
     status = message;
     currentPrefixSolutions = null;
@@ -1177,7 +1184,8 @@
     pointerCol: number,
     updateFloating = true,
   ): void {
-    if (!selectedPiece || !transformed) {
+    const dragPieceName = rectangleDraggedOriginPlacement?.name ?? selectedPiece;
+    if (!dragPieceName) {
       return;
     }
     let candidate: Placement;
@@ -1188,12 +1196,12 @@
         [r + deltaRow, c + deltaCol] as [number, number],
       );
       if (updateFloating) {
-        rectangleFloatingPlacement = { name: selectedPiece, cells: floatCells };
+        rectangleFloatingPlacement = { name: dragPieceName, cells: floatCells };
       }
       const snapDeltaRow = Math.round(deltaRow);
       const snapDeltaCol = Math.round(deltaCol);
       candidate = {
-        name: selectedPiece,
+        name: dragPieceName,
         cells: rectangleDragStartCells.map(([r, c]) =>
           [r + snapDeltaRow, c + snapDeltaCol] as [number, number],
         ),
@@ -1211,14 +1219,17 @@
         );
       }
     } else {
+      if (!transformed) {
+        return;
+      }
       const floatCells = transformed.map(([r, c]) =>
         [r + pointerRow, c + pointerCol] as [number, number],
       );
       if (updateFloating) {
-        rectangleFloatingPlacement = { name: selectedPiece, cells: floatCells };
+        rectangleFloatingPlacement = { name: dragPieceName, cells: floatCells };
       }
       candidate = snappedPlacementAtPointerBarycenter(
-        selectedPiece,
+        dragPieceName,
         transformed,
         pointerRow,
         pointerCol,
@@ -1245,6 +1256,7 @@
     truncateToPrefix();
     placements = [...placements, clonePlacements([candidate])[0]];
     prefixCount = placements.length;
+    selectedPiece = null;
 
     if (placements.length === PIECE_ORDER.length) {
       addSolved(placements);
@@ -1280,10 +1292,11 @@
     const next = visiblePlacements.filter((p) => p.name !== origin.name);
     placements = clonePlacements(next);
     prefixCount = placements.length;
+    selectedPiece = null;
     clearRectangleDragState();
     currentPrefixSolutions = null;
     activeSolverCountRequestId = -1;
-    status = `${origin.name} removed and selected. Counting solutions for this prefix...`;
+    status = `${origin.name} removed. Counting solutions for this prefix...`;
     requestSolverPrefixCount(clonePlacements(placements), boardRows, boardCols);
   }
 
@@ -1326,8 +1339,6 @@
     rectangleDraggedOriginPlacement = clonePlacements([dragged])[0];
     rectangleDragMoved = false;
     rectangleDraggedPlacementValid = true;
-    selectedPiece = hit.name;
-    resetPose();
     hover = null;
     rectangleHoverPointerPos = null;
     currentPrefixSolutions = null;
@@ -1340,7 +1351,7 @@
     rectangleDragStartPointer = rectangleHoverPointerPos ?? { row: row + 0.5, col: col + 0.5 };
     rectangleDragStartCells = dragged.cells.map(([r, c]) => [r, c] as [number, number]);
     rectanglePointerPos = { row, col };
-    status = `${hit.name} removed and selected.`;
+    status = `${hit.name} removed.`;
     return true;
   }
 
@@ -1370,6 +1381,9 @@
     );
     hover = { row, col };
     if (removePieceAt(row, col)) {
+      return;
+    }
+    if (!rectangleAllowsHoverPlacement) {
       return;
     }
     const pointer = rectangleHoverPointerPos ?? { row: row + 0.5, col: col + 0.5 };
@@ -1686,6 +1700,10 @@
         return;
       }
       if (!rectangleDragActive && rectangleDraggedOriginPlacement) {
+        rectangleHoverPointerPos = null;
+        return;
+      }
+      if (!rectangleAllowsHoverPlacement) {
         rectangleHoverPointerPos = null;
         return;
       }
@@ -2374,15 +2392,15 @@
             ? transformed
             : pieceCells(name)}
         {@const dims = bounds(shape)}
-        <button
-          class="piece-btn"
-          class:selected={selectedPiece === name}
-          class:used={disabled}
-          onclick={() => selectPiece(name)}
-          onpointerdown={(event) => startPickerDrag(event, name)}
-          disabled={disabled || isRectangleLocked}
-          aria-label={`Select ${name}`}
-        >
+          <button
+            class="piece-btn"
+            class:selected={selectedPiece === name}
+            class:used={disabled}
+            onclick={() => onPickerPieceClick(name)}
+            onpointerdown={(event) => startPickerDrag(event, name)}
+            disabled={disabled || isRectangleLocked}
+            aria-label={`Select ${name}`}
+          >
           {#if !useTouchLayout}
             <span class="label">{name}</span>
           {/if}
@@ -2422,20 +2440,6 @@
       {:else}
         <span class="pose-readout">
           keys: piece letter to select, R/Shift+R rotate, X flip, Esc clear ghost
-        </span>
-      {/if}
-      {#if !useTouchLayout && selectedPiece}
-        {@const previewCells = transformed && transformed.length > 0 ? transformed : pieceCells(selectedPiece)}
-        {@const dims = bounds(previewCells)}
-        <span class="active-preview-shell" aria-label="Active transformed preview">
-          <span
-            class="mini active-preview-mini"
-            style={`--rows:${dims.rows};--cols:${dims.cols};--c:${PIECE_COLORS[selectedPiece]}`}
-          >
-            {#each previewCells as [r, c]}
-              <span class="cell" style={`grid-row:${r + 1};grid-column:${c + 1}`}></span>
-            {/each}
-          </span>
         </span>
       {/if}
     </div>
@@ -2656,7 +2660,12 @@
             class="piece-btn"
             class:selected={tripSelectedPiece === name}
             class:used={disabled}
-            onclick={() => selectTripPiece(name)}
+            onclick={() => {
+              if (!useTouchLayout) {
+                return;
+              }
+              selectTripPiece(name);
+            }}
             disabled={disabled || isTriplicationLocked}
             aria-label={`Select ${name}`}
           >
@@ -2699,20 +2708,6 @@
         {:else}
           <span class="pose-readout">
             keys: piece letter to select, R/Shift+R rotate, X flip, Esc clear ghost
-          </span>
-        {/if}
-        {#if !useTouchLayout && tripSelectedPiece}
-          {@const previewCells = tripTransformed && tripTransformed.length > 0 ? tripTransformed : pieceCells(tripSelectedPiece)}
-          {@const dims = bounds(previewCells)}
-          <span class="active-preview-shell" aria-label="Active transformed preview">
-            <span
-              class="mini active-preview-mini"
-              style={`--rows:${dims.rows};--cols:${dims.cols};--c:${PIECE_COLORS[tripSelectedPiece]}`}
-            >
-              {#each previewCells as [r, c]}
-                <span class="cell" style={`grid-row:${r + 1};grid-column:${c + 1}`}></span>
-              {/each}
-            </span>
           </span>
         {/if}
       </div>

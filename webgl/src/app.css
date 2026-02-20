@@ -58,7 +58,7 @@ main {
 }
 
 main.long-rect-mode {
-  grid-template-columns: 1fr;
+  grid-template-columns: minmax(0, 1fr) 300px;
 }
 
 .pane-tabs {
@@ -70,6 +70,8 @@ main.long-rect-mode {
 
 .tab-btn {
   flex: 0 0 auto;
+  font-size: 0.82rem;
+  padding: 0.24rem 0.5rem;
 }
 
 .tab-btn.active {
@@ -205,7 +207,7 @@ header p.error-status {
 }
 
 main.long-rect-mode .solver-pane {
-  grid-column: 1 / -1;
+  grid-column: 1;
 }
 
 main.long-rect-mode .solver-pane .piece-bank {
@@ -306,15 +308,15 @@ main.long-rect-mode .solver-pane .pose-readout {
   display: grid;
   grid-template-rows: repeat(var(--rows), 7px);
   grid-template-columns: repeat(var(--cols), 7px);
-  gap: 1px;
-  padding: 2px;
-  border-radius: 6px;
-  background: #080b16;
+  gap: 0;
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
 }
 
 .mini .cell {
   background: var(--c);
-  border-radius: 2px;
+  border-radius: 0;
 }
 
 main.touch-mode .piece-bank {
@@ -339,29 +341,6 @@ main.touch-mode .mini {
 
 main.touch-mode .mini .cell {
   border-radius: 0;
-}
-
-.active-preview-shell {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 52px;
-  height: 52px;
-  overflow: hidden;
-  padding: 3px;
-  border-radius: 6px;
-  background: #070b17;
-  border: 1px solid #344164;
-}
-
-.active-preview-mini {
-  display: grid;
-  grid-template-rows: repeat(var(--rows), 8px);
-  grid-template-columns: repeat(var(--cols), 8px);
-  gap: 1px;
-  padding: 0;
-  border-radius: 0;
-  background: transparent;
 }
 
 .triplication-solver-pane {
@@ -478,6 +457,11 @@ button:disabled {
   overflow: hidden;
 }
 
+main.long-rect-mode .solver-pane .board-wrap {
+  max-height: calc(100dvh - 16rem);
+  width: min(100%, calc((100dvh - 16rem) * var(--board-ratio)));
+}
+
 .board-wrap.solved-transition {
   transition: transform 2s ease-in-out, opacity 2s ease-in-out, filter 2s ease-in-out;
   transform: translate(var(--solved-dx, 0px), var(--solved-dy, 0px)) scale(var(--solved-scale, 1));
@@ -528,9 +512,9 @@ input[type='range'] {
 }
 
 main.long-rect-mode .solved-pane {
-  grid-column: 1 / -1;
-  height: auto;
-  max-height: 34vh;
+  grid-column: 2;
+  height: calc(100vh - 1.4rem);
+  max-height: none;
 }
 
 .solved-list {
