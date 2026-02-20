@@ -44,6 +44,11 @@
     piece: PieceName;
     enteredBoard: boolean;
   };
+  type TripPickerDragState = {
+    pointerId: number;
+    pointerType: string;
+    piece: PieceName;
+  };
 
   const isTouchDevice =
     typeof window !== 'undefined' &&
@@ -57,6 +62,7 @@
   const touchViewOptions = ['solver', 'solved'] as const;
   const SOLVED_TRANSITION_MS = 2000;
   const STATUS_FLIGHT_MS = 1000;
+  const UI_STATE_STORAGE_KEY = 'pentomanim:webgl:ui-state:v1';
 
   let selectedPiece = $state<PieceName | null>(null);
   let selectedBoardSize = $state<(typeof boardSizeOptions)[number]>('10x6');
@@ -115,6 +121,7 @@
   let rectangleDragPointerType = $state<string | null>(null);
   let rectanglePickerDrag = $state<PickerDragState | null>(null);
   let tripDragActive = $state(false);
+  let tripPickerDrag = $state<TripPickerDragState | null>(null);
   let rectangleDraggedPlacement = $state<Placement | null>(null);
   let tripDraggedPlacement = $state<Placement | null>(null);
   let rectangleSnapTimer = $state<ReturnType<typeof setTimeout> | null>(null);
@@ -153,6 +160,7 @@
   let tripStatusDelayTimer = $state<ReturnType<typeof setTimeout> | null>(
     null,
   );
+  let rectanglePersistenceReady = $state(false);
   const MIN_INITIAL_SPEED = 0.01;
   const MAX_INITIAL_SPEED = 1000000;
   const SPEED_EXP_RANGE = Math.log2(MAX_INITIAL_SPEED / MIN_INITIAL_SPEED);
@@ -418,6 +426,121 @@
         tripGhostPlacement as Placement,
       ),
   );
+
+  type PersistedUiState = {
+    activePane: (typeof paneOptions)[number];
+    selectedBoardSize: (typeof boardSizeOptions)[number];
+    placements: Placement[];
+    prefixCount: number;
+    solvedSolutions: SavedSolution[];
+    triplicationProblem: TriplicationProblem | null;
+    tripPlacements: Placement[];
+    tripPrefixCount: number;
+    tripSolvedSolutions: SavedTriplicationSolution[];
+  };
+
+  function readPersistedUiState(): PersistedUiState | null {
+    if (typeof window === 'undefined') {
+      return null;
+    }
+    try {
+      const raw = window.localStorage.getItem(UI_STATE_STORAGE_KEY);
+      if (!raw) {
+        return null;
+      }
+      const parsed = JSON.parse(raw) as Partial<PersistedUiState>;
+      if (
+        !parsed ||
+        (parsed.activePane !== 'rectangle' && parsed.activePane !== 'triplication') ||
+        !boardSizeOptions.includes(
+          parsed.selectedBoardSize as (typeof boardSizeOptions)[number],
+        )
+      ) {
+        return null;
+      }
+      return {
+        activePane: parsed.activePane,
+        selectedBoardSize: parsed.selectedBoardSize as (typeof boardSizeOptions)[number],
+        placements: clonePlacements((parsed.placements as Placement[]) ?? []),
+        prefixCount: Math.max(
+          0,
+          Math.min(
+            Number(parsed.prefixCount ?? 0),
+            ((parsed.placements as Placement[]) ?? []).length,
+          ),
+        ),
+        solvedSolutions: (parsed.solvedSolutions ?? []).map((s) => ({
+          placements: clonePlacements(s.placements ?? []),
+          rows: Number(s.rows),
+          cols: Number(s.cols),
+        })),
+        triplicationProblem: parsed.triplicationProblem
+          ? cloneTriplicationProblem(parsed.triplicationProblem)
+          : null,
+        tripPlacements: clonePlacements((parsed.tripPlacements as Placement[]) ?? []),
+        tripPrefixCount: Math.max(
+          0,
+          Math.min(
+            Number(parsed.tripPrefixCount ?? 0),
+            ((parsed.tripPlacements as Placement[]) ?? []).length,
+          ),
+        ),
+        tripSolvedSolutions: (parsed.tripSolvedSolutions ?? []).map((s) => ({
+          problem: cloneTriplicationProblem(s.problem),
+          placements: clonePlacements(s.placements ?? []),
+        })),
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  function persistUiState(): void {
+    if (!rectanglePersistenceReady) {
+      return;
+    }
+    if (typeof window === 'undefined') {
+      return;
+    }
+    const snapshot: PersistedUiState = {
+      activePane,
+      selectedBoardSize,
+      placements: clonePlacements(placements),
+      prefixCount,
+      solvedSolutions: solvedSolutions.map((s) => ({
+        placements: clonePlacements(s.placements),
+        rows: s.rows,
+        cols: s.cols,
+      })),
+      triplicationProblem: triplicationProblem
+        ? cloneTriplicationProblem(triplicationProblem)
+        : null,
+      tripPlacements: clonePlacements(tripPlacements),
+      tripPrefixCount,
+      tripSolvedSolutions: tripSolvedSolutions.map((s) => ({
+        problem: cloneTriplicationProblem(s.problem),
+        placements: clonePlacements(s.placements),
+      })),
+    };
+    try {
+      window.localStorage.setItem(UI_STATE_STORAGE_KEY, JSON.stringify(snapshot));
+    } catch {
+      // Ignore storage quota/unavailability.
+    }
+  }
+
+  $effect(() => {
+    activePane;
+    selectedBoardSize;
+    placements;
+    prefixCount;
+    solvedSolutions;
+    triplicationProblem;
+    tripPlacements;
+    tripPrefixCount;
+    tripSolvedSolutions;
+    persistUiState();
+  });
 
   function onBoardSizeChange(event: Event): void {
     clearRectangleSnapTimers();
@@ -1044,11 +1167,15 @@
   }
 
   function onPickerPointerMove(event: PointerEvent): void {
-    if (!rectanglePickerDrag || event.pointerId !== rectanglePickerDrag.pointerId) {
+    if (rectanglePickerDrag && event.pointerId === rectanglePickerDrag.pointerId) {
+      event.preventDefault();
+      applyRectanglePickerDragPointer(event.clientX, event.clientY, true);
       return;
     }
-    event.preventDefault();
-    applyRectanglePickerDragPointer(event.clientX, event.clientY, true);
+    if (tripPickerDrag && event.pointerId === tripPickerDrag.pointerId) {
+      event.preventDefault();
+      applyTripPickerDragPointer(event.clientX, event.clientY, true);
+    }
   }
 
   function finalizeRectanglePickerDrag(dropOnBoard: boolean): void {
@@ -1084,23 +1211,35 @@
   }
 
   function onPickerPointerUp(event: PointerEvent): void {
-    if (!rectanglePickerDrag || event.pointerId !== rectanglePickerDrag.pointerId) {
+    if (rectanglePickerDrag && event.pointerId === rectanglePickerDrag.pointerId) {
+      event.preventDefault();
+      const boardPos = rectangleBoardPosFromClient(event.clientX, event.clientY, false);
+      if (boardPos) {
+        applyRectanglePickerDragPointer(event.clientX, event.clientY, true);
+      }
+      finalizeRectanglePickerDrag(!!boardPos);
       return;
     }
-    event.preventDefault();
-    const boardPos = rectangleBoardPosFromClient(event.clientX, event.clientY, false);
-    if (boardPos) {
-      applyRectanglePickerDragPointer(event.clientX, event.clientY, true);
+    if (tripPickerDrag && event.pointerId === tripPickerDrag.pointerId) {
+      event.preventDefault();
+      const boardPos = tripBoardCellFromClient(event.clientX, event.clientY, false);
+      if (boardPos) {
+        applyTripPickerDragPointer(event.clientX, event.clientY, true);
+      }
+      finalizeTripPickerDrag(!!boardPos);
     }
-    finalizeRectanglePickerDrag(!!boardPos);
   }
 
   function onPickerPointerCancel(event: PointerEvent): void {
-    if (!rectanglePickerDrag || event.pointerId !== rectanglePickerDrag.pointerId) {
+    if (rectanglePickerDrag && event.pointerId === rectanglePickerDrag.pointerId) {
+      event.preventDefault();
+      finalizeRectanglePickerDrag(false);
       return;
     }
-    event.preventDefault();
-    finalizeRectanglePickerDrag(false);
+    if (tripPickerDrag && event.pointerId === tripPickerDrag.pointerId) {
+      event.preventDefault();
+      finalizeTripPickerDrag(false);
+    }
   }
 
   function startPickerDrag(event: PointerEvent, piece: PieceName): void {
@@ -1135,6 +1274,97 @@
     rectangleHoverPointerPos = null;
     rectanglePointerOverBoard = false;
     applyRectanglePickerDragPointer(event.clientX, event.clientY, true);
+  }
+
+  function tripBoardCellFromClient(
+    clientX: number,
+    clientY: number,
+    clampToBoard: boolean,
+  ): { row: number; col: number } | null {
+    if (!tripBoardWrapEl || !triplicationProblem) {
+      return null;
+    }
+    const rect = tripBoardWrapEl.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) {
+      return null;
+    }
+    let x = clientX - rect.left;
+    let y = clientY - rect.top;
+    if (clampToBoard) {
+      x = Math.max(0, Math.min(rect.width, x));
+      y = Math.max(0, Math.min(rect.height, y));
+    }
+    if (x < 0 || y < 0 || x > rect.width || y > rect.height) {
+      return null;
+    }
+    const col = Math.floor((x / rect.width) * triplicationProblem.cols);
+    const row = Math.floor((y / rect.height) * triplicationProblem.rows);
+    return {
+      row: Math.max(0, Math.min(triplicationProblem.rows - 1, row)),
+      col: Math.max(0, Math.min(triplicationProblem.cols - 1, col)),
+    };
+  }
+
+  function applyTripPickerDragPointer(
+    clientX: number,
+    clientY: number,
+    clampToBoard: boolean,
+  ): void {
+    const boardPos =
+      tripBoardCellFromClient(clientX, clientY, false) ??
+      tripBoardCellFromClient(clientX, clientY, clampToBoard);
+    if (!boardPos) {
+      tripHover = null;
+      return;
+    }
+    if (isOccupiedCell(tripVisiblePlacements, boardPos.row, boardPos.col)) {
+      tripHover = null;
+      return;
+    }
+    tripHover = boardPos;
+  }
+
+  function finalizeTripPickerDrag(dropOnBoard: boolean): void {
+    if (!tripPickerDrag) {
+      return;
+    }
+    tripPickerDrag = null;
+    if (
+      !dropOnBoard ||
+      !tripHover ||
+      !tripSelectedPiece ||
+      !tripTransformed
+    ) {
+      tripHover = null;
+      return;
+    }
+    commitTripPlacement({
+      name: tripSelectedPiece,
+      cells: placeAtAnchor(tripTransformed, tripHover.row, tripHover.col),
+    });
+    tripHover = null;
+  }
+
+  function startTripPickerDrag(event: PointerEvent, piece: PieceName): void {
+    if (isTriplicationLocked) {
+      return;
+    }
+    const pointerType = event.pointerType || 'touch';
+    if (pointerType !== 'touch') {
+      return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    if (tripSelectedPiece !== piece) {
+      selectTripPiece(piece);
+    }
+    tripPickerDrag = {
+      pointerId: event.pointerId,
+      pointerType,
+      piece,
+    };
+    tripHover = null;
+    applyTripPickerDragPointer(event.clientX, event.clientY, true);
   }
 
   function clearRectangleDragState(): void {
@@ -2251,11 +2481,12 @@
   });
 
   onMount(() => {
+    const restored = readPersistedUiState();
     const updateLayoutMode = () => {
       useTouchLayout =
         isTouchDevice ||
         window.innerWidth <= COMPACT_LAYOUT_MAX_WIDTH;
-      if (!useTouchLayout) {
+      if (!useTouchLayout && !restored) {
         touchViewMode = 'solver';
       }
     };
@@ -2287,7 +2518,33 @@
       currentPrefixSolutions = null;
       status = 'Could not count prefix solutions in background.';
     };
-    newTriplicationProblem();
+    if (restored) {
+      activePane = restored.activePane;
+      selectedBoardSize = restored.selectedBoardSize;
+      placements = clonePlacements(restored.placements);
+      prefixCount = restored.prefixCount;
+      solvedSolutions = restored.solvedSolutions.map((s) => ({
+        placements: clonePlacements(s.placements),
+        rows: s.rows,
+        cols: s.cols,
+      }));
+      tripSolvedSolutions = restored.tripSolvedSolutions.map((s) => ({
+        problem: cloneTriplicationProblem(s.problem),
+        placements: clonePlacements(s.placements),
+      }));
+      if (restored.triplicationProblem) {
+        triplicationProblem = cloneTriplicationProblem(restored.triplicationProblem);
+        tripPlacements = clonePlacements(restored.tripPlacements);
+        tripPrefixCount = Math.min(restored.tripPrefixCount, tripPlacements.length);
+        tripSelectedPiece = null;
+        tripHover = null;
+      } else {
+        newTriplicationProblem();
+      }
+    } else {
+      newTriplicationProblem();
+    }
+    rectanglePersistenceReady = true;
 
     return () => {
       window.removeEventListener('resize', updateLayoutMode);
@@ -2703,12 +2960,8 @@
             class="piece-btn"
             class:selected={tripSelectedPiece === name}
             class:used={disabled}
-            onclick={() => {
-              if (!useTouchLayout) {
-                return;
-              }
-              selectTripPiece(name);
-            }}
+            onclick={() => selectTripPiece(name)}
+            onpointerdown={(event) => startTripPickerDrag(event, name)}
             disabled={disabled || isTriplicationLocked}
             aria-label={`Select ${name}`}
           >
