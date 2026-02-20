@@ -96,6 +96,7 @@
   let tripAnimationStepsUsed = $state(0);
   let tripAnimationStartSliderValue = $state<number | null>(null);
   let rectangleBoardWrapEl = $state<HTMLDivElement | null>(null);
+  let rectangleSolverPaneEl = $state<HTMLElement | null>(null);
   let tripBoardWrapEl = $state<HTMLDivElement | null>(null);
   let rectangleStatusEl = $state<HTMLParagraphElement | null>(null);
   let tripStatusEl = $state<HTMLParagraphElement | null>(null);
@@ -341,6 +342,13 @@
       (rectanglePickerDragActive ||
         rectangleDragPointerType === 'touch' ||
         rectanglePickerDrag?.pointerType === 'touch'),
+  );
+  const rectangleLeftPickerLayout = $derived(
+    useTouchLayout &&
+      activePane === 'rectangle' &&
+      touchViewMode === 'solver' &&
+      rectangleBoardRotatedView &&
+      boardRows === 3,
   );
 
   $effect(() => {
@@ -939,8 +947,19 @@
       rectangleTouchOverlayStyle = '';
       return;
     }
-    const tabsRect = paneTabsEl.getBoundingClientRect();
     const boardRect = rectangleBoardWrapEl.getBoundingClientRect();
+    if (rectangleLeftPickerLayout && rectangleSolverPaneEl) {
+      const paneRect = rectangleSolverPaneEl.getBoundingClientRect();
+      const left = Math.round(paneRect.left);
+      const top = Math.round(boardRect.top);
+      const width = Math.max(0, Math.floor(boardRect.left - paneRect.left - 2));
+      const height = Math.max(0, Math.floor(boardRect.height));
+      rectangleTouchOverlayStyle =
+        `top:${top}px;left:${left}px;` +
+        `width:${width}px;height:${height}px;`;
+      return;
+    }
+    const tabsRect = paneTabsEl.getBoundingClientRect();
     const top = Math.ceil(tabsRect.bottom + 1);
     const height = Math.max(0, Math.floor(boardRect.top - tabsRect.bottom - 2));
     rectangleTouchOverlayStyle =
@@ -962,7 +981,14 @@
     const x = Math.max(0, Math.min(rect.width, clientX - rect.left));
     const y = Math.max(0, Math.min(rect.height, clientY - rect.top));
     const displayRow = (y / rect.height) * rectangleDisplayRows;
-    const displayCol = (x / rect.width) * rectangleDisplayCols;
+    let displayCol = (x / rect.width) * rectangleDisplayCols;
+    if (rectangleLeftPickerLayout && rectangleBoardWrapEl) {
+      const boardRect = rectangleBoardWrapEl.getBoundingClientRect();
+      if (boardRect.width > 0) {
+        displayCol =
+          ((clientX - boardRect.left) / boardRect.width) * rectangleDisplayCols;
+      }
+    }
     const [row, col] = fromDisplayCell(
       displayRow,
       displayCol,
@@ -2277,6 +2303,18 @@
     return PIECES[name];
   }
 
+  function orientCellsForRectangleView(
+    cells: [number, number][],
+  ): [number, number][] {
+    if (!rectangleBoardRotatedView) {
+      return cells;
+    }
+    const rotated = cells.map(([r, c]) => [c, -r] as [number, number]);
+    const minRow = Math.min(...rotated.map(([r]) => r));
+    const minCol = Math.min(...rotated.map(([, c]) => c));
+    return rotated.map(([r, c]) => [r - minRow, c - minCol]);
+  }
+
   function bounds(cells: [number, number][]): { rows: number; cols: number } {
     const maxR = Math.max(...cells.map((c) => c[0])) + 1;
     const maxC = Math.max(...cells.map((c) => c[1])) + 1;
@@ -2286,7 +2324,11 @@
 
 <svelte:window onkeydown={onKey} onclick={closeRepoLinkOnOutsideClick} />
 
-<main class:touch-mode={useTouchLayout} class:long-rect-mode={activePane === 'rectangle' && isLongRectangleBoard}>
+<main
+  class:touch-mode={useTouchLayout}
+  class:long-rect-mode={activePane === 'rectangle' && isLongRectangleBoard}
+  class:left-picker-layout={rectangleLeftPickerLayout}
+>
   {#if statusFlight}
     <div
       class="status-flight"
@@ -2356,7 +2398,7 @@
 
   {#if activePane === 'rectangle'}
   {#if !useTouchLayout || touchViewMode === 'solver'}
-  <section class="pane solver-pane">
+  <section class="pane solver-pane" bind:this={rectangleSolverPaneEl}>
     <header>
       <div class="solver-title-row">
         <h2>Rectangle Solver</h2>
@@ -2387,10 +2429,11 @@
     <div class="piece-bank">
       {#each PIECE_ORDER as name}
         {@const disabled = usedNames.has(name)}
-        {@const shape =
+        {@const shape = orientCellsForRectangleView(
           selectedPiece === name && transformed
             ? transformed
-            : pieceCells(name)}
+            : pieceCells(name),
+        )}
         {@const dims = bounds(shape)}
           <button
             class="piece-btn"

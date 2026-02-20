@@ -331,6 +331,44 @@ main.touch-mode .piece-btn {
   touch-action: none;
 }
 
+main.left-picker-layout.touch-mode .solver-pane {
+  grid-template-columns: 56px minmax(0, 1fr);
+  grid-template-rows: auto auto auto minmax(0, 1fr) auto;
+  column-gap: 0.35rem;
+}
+
+main.left-picker-layout.touch-mode .solver-pane > header {
+  grid-column: 1 / -1;
+}
+
+main.left-picker-layout.touch-mode .solver-pane > .toolbar {
+  grid-column: 1 / -1;
+}
+
+main.left-picker-layout.touch-mode .solver-pane > .piece-bank {
+  grid-column: 1;
+  grid-row: 4;
+  grid-template-columns: 1fr;
+  gap: 0.22rem;
+  align-content: start;
+}
+
+main.left-picker-layout.touch-mode .solver-pane > .board-wrap {
+  grid-column: 2;
+  grid-row: 4;
+  justify-self: start;
+  width: min(100%, calc(48dvh * var(--board-ratio)));
+}
+
+main.left-picker-layout.touch-mode .solver-pane > .slider-row {
+  grid-column: 1 / -1;
+}
+
+main.left-picker-layout.touch-mode .piece-btn {
+  min-height: 32px;
+  padding: 0.06rem;
+}
+
 main.touch-mode .mini {
   gap: 0;
   padding: 0;
