@@ -152,3 +152,13 @@ bun run preview
   - `/Users/cog/mine/pentomanim/webgl/src/lib/pentomino.ts`
   - `/Users/cog/mine/pentomanim/webgl/src/lib/solver.ts`
   - `/Users/cog/mine/pentomanim/webgl/src/lib/triplication.ts`
+
+## Spec Commands
+
+- `incspec` means: incremental spec.
+- In practice, this means reformulating the current spec, or a specific part
+  of it, by applying incremental changes.
+- An `incspec` response must include a section named
+  `Imprecisions / Inconsistencies`.
+- That section must explicitly list unclear, conflicting, or underspecified
+  points that still require decisions.
