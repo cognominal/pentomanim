@@ -10,6 +10,9 @@
 
 ## Project Conventions
 - Compile/build output must be warning-free.
+- Cursor icons must follow standard platform usage (for example:
+  `pointer`, `grab`, `grabbing`, `not-allowed`, `progress`) and match
+  the current interaction affordance.
 - In source files and markdown files, keep lines under 80 characters when
   practical.
 - Exception: exceed 80 characters when wrapping would make code awkward or

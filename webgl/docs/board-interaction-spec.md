@@ -108,3 +108,24 @@ The model is device-agnostic: no separate behavior by touch vs mouse vs pen.
 10. Behavior is identical across touch and click projects (same semantic outcomes).
 11. Drag path and settle animation are visually smooth in both click and touch
     projects.
+
+## Cursor Affordance (mouse/trackpad only)
+
+Use standard system cursors and keep cursor state consistent with interaction
+state. Do not rely on cursor alone; pair with visible UI feedback.
+
+- `default`: neutral board idle.
+- `pointer`: clickable/tappable targets (piece buttons, active quadrants, piece
+  tap target for overlay).
+- `grab`: movable piece is hover-ready before drag.
+- `grabbing`: active drag / ghost move in progress.
+- `not-allowed`: invalid drop / unresolved overlap target.
+- `move` (optional): movable ghost hold state (if distinct from dragging).
+- `progress` or `wait`: 0.5s transform animation while interactions are
+  temporarily blocked.
+
+### Cursor rules
+- Apply cursor changes only for mouse/trackpad, not touch.
+- Disabled quadrants must use muted styling and `not-allowed`.
+- Cursor changes must respect accessibility expectations; state must also be
+  visible through color/shape/overlay changes.
