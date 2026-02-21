@@ -57,6 +57,8 @@
 - `incspec` means: incremental spec.
 - In practice, `incspec` means restating the current spec or sub-spec, then
   applying the requested incremental changes.
+- `specmd` means: create or update a `.md` file that contains the current
+  requested spec (or sub-spec).
 - An `incspec` response must include a section named
   `Imprecisions / Inconsistencies`.
 - That section must explicitly list unclear, conflicting, or underspecified
