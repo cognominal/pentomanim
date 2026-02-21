@@ -51,3 +51,13 @@
 - Reference commits as short SHAs (for example: `837c44f`).
 - Reference files with repo-relative paths (for example:
   `webgl/tests/drag-move-piece.spec.ts`), not absolute local paths.
+
+## Spec Directives
+- `spec` means: restate the current spec, or a sub-spec (part of the spec).
+- `incspec` means: incremental spec.
+- In practice, `incspec` means restating the current spec or sub-spec, then
+  applying the requested incremental changes.
+- An `incspec` response must include a section named
+  `Imprecisions / Inconsistencies`.
+- That section must explicitly list unclear, conflicting, or underspecified
+  points that still require decisions.
