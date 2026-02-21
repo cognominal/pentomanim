@@ -158,6 +158,8 @@ bun run preview
 - `incspec` means: incremental spec.
 - In practice, this means reformulating the current spec, or a specific part
   of it, by applying incremental changes.
+- The spec directive means to restate the current spec or current sub-spec
+  (part of the spec), then apply the requested incremental changes.
 - An `incspec` response must include a section named
   `Imprecisions / Inconsistencies`.
 - That section must explicitly list unclear, conflicting, or underspecified
