@@ -1,3 +1,6 @@
+// Choose the active column with the smallest branching factor.
+//
+// This is the classic DLX heuristic to reduce search fan-out.
 function choose(root) {
     let best = null;
     for (let c = root.r; c !== root; c = c.r) {
@@ -7,6 +10,12 @@ function choose(root) {
     }
     return best;
 }
+// Remove a column from the header list and remove all conflicting rows.
+//
+// "Cover" means:
+// 1) unlink the column header from the active header ring
+// 2) for each row containing this column, unlink every other node in that row
+//    from its column, shrinking those column sizes
 function cover(c) {
     c.r.l = c.l;
     c.l.r = c.r;
@@ -18,6 +27,10 @@ function cover(c) {
         }
     }
 }
+// Inverse of `cover`, restoring links in exact reverse traversal order.
+//
+// Reverse order is required so pointer rewiring precisely undoes prior cover
+// operations during backtracking.
 function uncover(c) {
     for (let i = c.u; i !== c; i = i.u) {
         for (let j = i.l; j !== i; j = j.l) {
@@ -30,9 +43,13 @@ function uncover(c) {
     c.l.r = c;
 }
 export function solveDlx(columnCount, rows, maxSolutions = 1) {
+    // Thin wrapper used when caller does not need decision trace events.
     return solveDlxWithTrace(columnCount, rows, maxSolutions).solutions;
 }
 export function solveDlxWithTrace(columnCount, rows, maxSolutions = 1, maxTraceEvents = 20000) {
+    // Sentinel root for the circular list of active column headers.
+    //
+    // The root acts as both list anchor and termination marker while iterating.
     const root = {};
     root.l = root;
     root.r = root;
@@ -42,6 +59,8 @@ export function solveDlxWithTrace(columnCount, rows, maxSolutions = 1, maxTraceE
     root.size = 0;
     root.name = -1;
     root.rowId = -1;
+    // Create one header node per exact-cover column and link all headers into
+    // root's horizontal circular list.
     const cols = [];
     for (let i = 0; i < columnCount; i += 1) {
         const h = {};
@@ -57,6 +76,9 @@ export function solveDlxWithTrace(columnCount, rows, maxSolutions = 1, maxTraceE
         h.rowId = -1;
         cols.push(h);
     }
+    // Materialize sparse rows as linked nodes:
+    // - vertically inserted into each target column
+    // - horizontally linked into that row's circular ring
     for (const row of rows) {
         let first = null;
         let prev = null;
@@ -71,11 +93,13 @@ export function solveDlxWithTrace(columnCount, rows, maxSolutions = 1, maxTraceE
             n.d.u = n;
             c.size += 1;
             if (first === null) {
+                // First node starts a 1-node circular row ring.
                 first = n;
                 n.l = n;
                 n.r = n;
             }
             else {
+                // Append to row ring, keeping it circular through `first`.
                 n.l = prev;
                 n.r = first;
                 n.l.r = n;
@@ -84,34 +108,47 @@ export function solveDlxWithTrace(columnCount, rows, maxSolutions = 1, maxTraceE
             prev = n;
         }
     }
+    // Current partial solution as concrete row nodes.
     const partial = [];
+    // Accumulated exact-cover solutions.
     const out = [];
+    // Optional bounded trace of place/remove decisions for visualization/debug.
     const trace = [];
     function pushTrace(event) {
+        // Keep trace memory bounded for large/unsat searches.
         if (trace.length < maxTraceEvents) {
             trace.push(event);
         }
     }
     function search() {
+        // No columns left => all constraints satisfied by current partial rows.
         if (root.r === root) {
             out.push({ rowIds: partial.map((n) => n.rowId) });
             return;
         }
+        // Early-stop once requested number of solutions is reached.
         if (out.length >= maxSolutions) {
             return;
         }
         const c = choose(root);
+        // No viable column, or a required column with zero candidates.
+        // Both cases are dead ends.
         if (!c || c.size === 0) {
             return;
         }
+        // Branch on each row that can satisfy chosen column `c`.
         cover(c);
         for (let r = c.d; r !== c; r = r.d) {
+            // Commit this row into the partial solution.
             partial.push(r);
             pushTrace({ type: 'place', rowId: r.rowId });
+            // Cover all other columns touched by this row to enforce exclusivity.
             for (let j = r.r; j !== r; j = j.r) {
                 cover(j.c);
             }
+            // Recurse with tighter constraint set.
             search();
+            // Undo row-implied covers before trying sibling rows.
             for (let j = r.l; j !== r; j = j.l) {
                 uncover(j.c);
             }
@@ -121,6 +158,7 @@ export function solveDlxWithTrace(columnCount, rows, maxSolutions = 1, maxTraceE
             }
             pushTrace({ type: 'remove', rowId: r.rowId });
         }
+        // Restore chosen column before returning to caller.
         uncover(c);
     }
     search();

@@ -1,4 +1,6 @@
 from __future__ import annotations
+Openclaw is changing the game again. So this should be updated
+even if is still in embryonic form.
 
 from dataclasses import dataclass
 import random
