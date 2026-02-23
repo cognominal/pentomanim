@@ -107,9 +107,10 @@ class DLXBoard3x2ThreeTilesLinks(Scene):
 
         links = self.build_links_inset(all_rows)
         links["group"].scale(0.95)
+        links["group"].set_opacity(0.0)
 
         pane_explain = Text(
-            "Pre-search: all rows\nSearch: first 10 solutions\n"
+            "Pre-search: build matrix\nSearch: first 10 solutions\n"
             "Right inset: DLX pointers",
             font_size=18,
             color=WHITE,
@@ -198,11 +199,25 @@ class DLXBoard3x2ThreeTilesLinks(Scene):
         )
         status.next_to(status_anchor, DOWN, buff=0.18, aligned_edge=LEFT)
 
+        built_rows: List[str] = []
+        self.play(
+            self.apply_preview_table_state(
+                table,
+                built_rows=built_rows,
+                focus_row=None,
+            ),
+            self.apply_or_row(table, built_rows, row_lookup),
+            self.apply_board_state(board, [], row_lookup),
+            self.apply_picker_state(picker, {}),
+            run_time=0.35,
+        )
+
         for row in rows:
+            built_rows.append(row.name)
             taken = {row.piece: row.orient_cells}
             status.become(
                 Text(
-                    f"Row preview: {row.name}",
+                    f"Build row: {row.name}",
                     font_size=16,
                     color=YELLOW,
                 )
@@ -211,9 +226,10 @@ class DLXBoard3x2ThreeTilesLinks(Scene):
             self.play(
                 self.apply_preview_table_state(
                     table,
+                    built_rows=built_rows,
                     focus_row=row.name,
                 ),
-                self.apply_or_row(table, [row.name], row_lookup),
+                self.apply_or_row(table, built_rows, row_lookup),
                 self.apply_board_state(board, [row], row_lookup),
                 self.apply_picker_state(picker, taken),
                 run_time=self.PREVIEW_ROW_TIME,
@@ -222,9 +238,10 @@ class DLXBoard3x2ThreeTilesLinks(Scene):
         self.play(
             self.apply_preview_table_state(
                 table,
+                built_rows=built_rows,
                 focus_row=None,
             ),
-            self.apply_or_row(table, [], row_lookup),
+            self.apply_or_row(table, built_rows, row_lookup),
             self.apply_board_state(board, [], row_lookup),
             self.apply_picker_state(picker, {}),
             run_time=self.PREVIEW_RESET_TIME,
@@ -241,9 +258,11 @@ class DLXBoard3x2ThreeTilesLinks(Scene):
         status: Text,
         status_anchor,
     ) -> None:
+        self.play(FadeIn(links["group"]), run_time=0.35)
         for step in steps:
             note_anim = self.update_status(status, step.note, status_anchor)
             taken_map = self.taken_map_from_chosen(step.chosen_rows, row_lookup)
+            or_rows = self.rows_for_or(step)
             self.play(
                 self.apply_table_state(
                     table,
@@ -263,11 +282,15 @@ class DLXBoard3x2ThreeTilesLinks(Scene):
                     [row_lookup[name] for name in step.chosen_rows],
                     row_lookup,
                 ),
-                self.apply_or_row(table, step.chosen_rows, row_lookup),
+                self.apply_or_row(table, or_rows, row_lookup),
                 self.apply_picker_state(picker, taken_map),
                 note_anim,
                 run_time=self.SEARCH_STEP_TIME,
             )
+
+    @staticmethod
+    def rows_for_or(step: Step) -> List[str]:
+        return sorted(set(step.active_rows).union(step.chosen_rows))
 
     def build_links_inset(
         self,
@@ -424,10 +447,14 @@ class DLXBoard3x2ThreeTilesLinks(Scene):
                 anims.append(node.animate.set_stroke(GREEN, width=1.0))
                 anims.append(node.animate.set_opacity(1.0))
             elif is_active:
-                color = ORANGE if row_name == step.focus_row else WHITE
-                anims.append(node.animate.set_fill(color, opacity=0.72))
-                anims.append(node.animate.set_stroke(color, width=0.9))
-                anims.append(node.animate.set_opacity(1.0))
+                if row_name == step.focus_row:
+                    anims.append(node.animate.set_fill(ORANGE, opacity=0.78))
+                    anims.append(node.animate.set_stroke(ORANGE, width=1.0))
+                    anims.append(node.animate.set_opacity(1.0))
+                else:
+                    anims.append(node.animate.set_fill(WHITE, opacity=0.28))
+                    anims.append(node.animate.set_stroke(WHITE, width=0.8))
+                    anims.append(node.animate.set_opacity(0.36))
             else:
                 anims.append(node.animate.set_fill(WHITE, opacity=0.18))
                 anims.append(node.animate.set_stroke(WHITE, width=0.8))
@@ -440,9 +467,12 @@ class DLXBoard3x2ThreeTilesLinks(Scene):
                     anims.append(line.animate.set_color(GREEN))
                     anims.append(line.animate.set_opacity(0.92))
                 elif row_live:
-                    color = ORANGE if row_name == step.focus_row else WHITE
-                    anims.append(line.animate.set_color(color))
-                    anims.append(line.animate.set_opacity(0.75))
+                    if row_name == step.focus_row:
+                        anims.append(line.animate.set_color(ORANGE))
+                        anims.append(line.animate.set_opacity(0.82))
+                    else:
+                        anims.append(line.animate.set_color(WHITE))
+                        anims.append(line.animate.set_opacity(0.22))
                 else:
                     anims.append(line.animate.set_color(WHITE))
                     anims.append(line.animate.set_opacity(0.14))
@@ -503,9 +533,11 @@ class DLXBoard3x2ThreeTilesLinks(Scene):
     def apply_preview_table_state(
         self,
         table: Dict[str, object],
+        built_rows: Sequence[str],
         focus_row: Optional[str],
     ) -> AnimationGroup:
         anims = []
+        built_set = set(built_rows)
         for box in table["col_boxes"].values():
             anims.append(box.animate.set_opacity(1.0))
             anims.append(box.animate.set_fill(opacity=0.0))
@@ -513,25 +545,52 @@ class DLXBoard3x2ThreeTilesLinks(Scene):
 
         for row_name, row_group in table["row_groups"].items():
             label_box = table["row_labels"][row_name]
-            anims.append(row_group[0].animate.set_opacity(1.0))
-            anims.append(row_group[1].animate.set_opacity(1.0))
-            for col, mark in table["row_marks"][row_name].items():
-                base = 1.0 if col in table["row_memberships"][row_name] else 0.0
-                anims.append(mark.animate.set_opacity(base))
-            if row_name == focus_row:
-                anims.append(label_box.animate.set_stroke(ORANGE, width=2.6))
-                anims.append(
-                    label_box.animate.set_fill(color=ORANGE, opacity=0.28)
-                )
-                anims.append(
-                    row_group[1].animate.set_fill(color=ORANGE, opacity=0.25)
-                )
-                anims.append(row_group[1].animate.set_stroke(ORANGE, width=1.5))
+            if row_name in built_set:
+                if row_name == focus_row:
+                    row_opacity = 1.0
+                    mark_scale = 1.0
+                else:
+                    row_opacity = 0.38
+                    mark_scale = 0.38
+                anims.append(row_group[0].animate.set_opacity(row_opacity))
+                anims.append(row_group[1].animate.set_opacity(row_opacity))
+                for col, mark in table["row_marks"][row_name].items():
+                    base = (
+                        1.0
+                        if col in table["row_memberships"][row_name]
+                        else 0.0
+                    )
+                    anims.append(mark.animate.set_opacity(base * mark_scale))
+                if row_name == focus_row:
+                    anims.append(label_box.animate.set_stroke(ORANGE, width=2.6))
+                    anims.append(
+                        label_box.animate.set_fill(color=ORANGE, opacity=0.28)
+                    )
+                    anims.append(
+                        row_group[1].animate.set_fill(color=ORANGE, opacity=0.22)
+                    )
+                    anims.append(
+                        row_group[1].animate.set_stroke(ORANGE, width=1.4)
+                    )
+                else:
+                    anims.append(label_box.animate.set_stroke(WHITE, width=0.9))
+                    anims.append(label_box.animate.set_fill(opacity=0.0))
+                    anims.append(row_group[1].animate.set_fill(opacity=0.0))
+                    anims.append(row_group[1].animate.set_stroke(WHITE, width=0.6))
             else:
+                anims.append(row_group[0].animate.set_opacity(0.08))
+                anims.append(row_group[1].animate.set_opacity(0.08))
                 anims.append(label_box.animate.set_stroke(WHITE, width=0.9))
                 anims.append(label_box.animate.set_fill(opacity=0.0))
                 anims.append(row_group[1].animate.set_fill(opacity=0.0))
                 anims.append(row_group[1].animate.set_stroke(WHITE, width=0.6))
+                for col, mark in table["row_marks"][row_name].items():
+                    base = (
+                        1.0
+                        if col in table["row_memberships"][row_name]
+                        else 0.0
+                    )
+                    anims.append(mark.animate.set_opacity(base * 0.08))
 
         return AnimationGroup(*anims, lag_ratio=0.0)
 
@@ -979,11 +1038,17 @@ class DLXBoard3x2ThreeTilesLinks(Scene):
                     anims.append(mark.animate.set_opacity(base))
                 anims.append(label_box.animate.set_stroke(GREEN, width=2.6))
             elif row_name in active_rows:
-                anims.append(row_group[0].animate.set_opacity(1.0))
-                anims.append(row_group[1].animate.set_opacity(1.0))
+                if row_name == focus_row:
+                    row_opacity = 0.88
+                    mark_scale = 0.88
+                else:
+                    row_opacity = 0.26
+                    mark_scale = 0.22
+                anims.append(row_group[0].animate.set_opacity(row_opacity))
+                anims.append(row_group[1].animate.set_opacity(row_opacity))
                 for col, mark in table["row_marks"][row_name].items():
                     base = 1.0 if col in table["row_memberships"][row_name] else 0.0
-                    anims.append(mark.animate.set_opacity(base))
+                    anims.append(mark.animate.set_opacity(base * mark_scale))
                 if row_name == focus_row:
                     anims.append(
                         label_box.animate.set_stroke(ORANGE, width=2.6)
