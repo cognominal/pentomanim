@@ -1,4 +1,3 @@
-# Agent Notes
 
 ## Board Interaction Source of Truth
 - For the board placing/removing/dragging rewrite, use:

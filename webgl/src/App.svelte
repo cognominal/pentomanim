@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onDestroy, onMount } from 'svelte';
   import BoardWebGL from './lib/BoardWebGL.svelte';
+  import Pentomino3DPage from './lib/pages/Pentomino3DPage.svelte';
   import {
     PIECE_COLORS,
     PIECE_ORDER,
@@ -58,7 +59,7 @@
   const COMPACT_LAYOUT_MAX_WIDTH = 980;
   const repoUrl = 'https://github.com/cognominal/pentomanim';
   const boardSizeOptions = ['20x3', '15x4', '12x5', '10x6'] as const;
-  const paneOptions = ['rectangle', 'triplication'] as const;
+  const paneOptions = ['rectangle', 'triplication', 'cuboid'] as const;
   const touchViewOptions = ['solver', 'solved'] as const;
   const SOLVED_TRANSITION_MS = 2000;
   const STATUS_FLIGHT_MS = 1000;
@@ -179,7 +180,11 @@
   const rectangleSolvedCount = $derived(solvedSolutions.length);
   const triplicationSolvedCount = $derived(tripSolvedSolutions.length);
   const activeSolvedCount = $derived(
-    activePane === 'rectangle' ? rectangleSolvedCount : triplicationSolvedCount,
+    activePane === 'rectangle'
+      ? rectangleSolvedCount
+      : activePane === 'triplication'
+        ? triplicationSolvedCount
+        : 0,
   );
   const isRectangleLocked = $derived(
     isAnimating || rectangleSolvedTransitioning || rectangleSnapAnimating,
@@ -451,7 +456,9 @@
       const parsed = JSON.parse(raw) as Partial<PersistedUiState>;
       if (
         !parsed ||
-        (parsed.activePane !== 'rectangle' && parsed.activePane !== 'triplication') ||
+        (parsed.activePane !== 'rectangle' &&
+          parsed.activePane !== 'triplication' &&
+          parsed.activePane !== 'cuboid') ||
         !boardSizeOptions.includes(
           parsed.selectedBoardSize as (typeof boardSizeOptions)[number],
         )
@@ -2641,7 +2648,17 @@
     >
       Triplication Solver
     </button>
-    {#if useTouchLayout}
+    <button
+      class="tab-btn"
+      class:active={activePane === 'cuboid'}
+      onclick={() => {
+        activePane = 'cuboid';
+        touchViewMode = 'solver';
+      }}
+    >
+      Cuboid Solver
+    </button>
+    {#if useTouchLayout && activePane !== 'cuboid'}
       <button
         bind:this={solvedToggleEl}
         class="tab-btn touch-solved-toggle"
@@ -2934,7 +2951,7 @@
     {/if}
   </aside>
   {/if}
-  {:else}
+  {:else if activePane === 'triplication'}
   {#if !useTouchLayout || touchViewMode === 'solver'}
   <section class="pane triplication-solver-pane">
     <header>
@@ -3095,5 +3112,9 @@
     {/if}
   </aside>
   {/if}
+  {:else}
+  <section class="pane pentomino-3d-pane">
+    <Pentomino3DPage />
+  </section>
   {/if}
 </main>
