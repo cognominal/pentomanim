@@ -1,12 +1,5 @@
 {
-  "framework": "vite",
+  "framework": "sveltekit",
   "installCommand": "bun install",
-  "buildCommand": "bun run build",
-  "outputDirectory": "dist",
-  "rewrites": [
-    {
-      "source": "/(.*)",
-      "destination": "/index.html"
-    }
-  ]
+  "buildCommand": "bun run build"
 }

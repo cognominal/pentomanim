@@ -60,6 +60,13 @@
   const repoUrl = 'https://github.com/cognominal/pentomanim';
   const boardSizeOptions = ['20x3', '15x4', '12x5', '10x6'] as const;
   const paneOptions = ['rectangle', 'triplication', 'cuboid'] as const;
+  type AppProps = {
+    initialPane?: (typeof paneOptions)[number];
+    onpanechange?: (pane: (typeof paneOptions)[number]) => void;
+  };
+
+  let { initialPane = 'rectangle', onpanechange }: AppProps = $props();
+
   const touchViewOptions = ['solver', 'solved'] as const;
   const SOLVED_TRANSITION_MS = 2000;
   const STATUS_FLIGHT_MS = 1000;
@@ -238,6 +245,23 @@
     status.toLowerCase().includes('no completion') ||
       status.toLowerCase().includes('cannot place'),
   );
+
+  $effect(() => {
+    if (activePane === initialPane) {
+      return;
+    }
+    activePane = initialPane;
+    touchViewMode = 'solver';
+  });
+
+  function setPane(nextPane: (typeof paneOptions)[number]): void {
+    if (activePane === nextPane) {
+      return;
+    }
+    activePane = nextPane;
+    touchViewMode = 'solver';
+    onpanechange?.(nextPane);
+  }
   const isTripErrorStatus = $derived(
     triplicationStatus.toLowerCase().includes('no completion') ||
       triplicationStatus.toLowerCase().includes('cannot place'),
@@ -2526,7 +2550,7 @@
       status = 'Could not count prefix solutions in background.';
     };
     if (restored) {
-      activePane = restored.activePane;
+      activePane = initialPane;
       selectedBoardSize = restored.selectedBoardSize;
       placements = clonePlacements(restored.placements);
       prefixCount = restored.prefixCount;
@@ -2631,30 +2655,21 @@
     <button
       class="tab-btn"
       class:active={activePane === 'rectangle'}
-      onclick={() => {
-        activePane = 'rectangle';
-        touchViewMode = 'solver';
-      }}
+      onclick={() => setPane('rectangle')}
     >
       Rectangle Solver
     </button>
     <button
       class="tab-btn"
       class:active={activePane === 'triplication'}
-      onclick={() => {
-        activePane = 'triplication';
-        touchViewMode = 'solver';
-      }}
+      onclick={() => setPane('triplication')}
     >
       Triplication Solver
     </button>
     <button
       class="tab-btn"
       class:active={activePane === 'cuboid'}
-      onclick={() => {
-        activePane = 'cuboid';
-        touchViewMode = 'solver';
-      }}
+      onclick={() => setPane('cuboid')}
     >
       Cuboid Solver
     </button>

@@ -54,6 +54,9 @@
   let activePointerId: number | null = null;
   let activePointerType: string | null = null;
   let globalPointerListenersAttached = false;
+  const hasRaf =
+    typeof globalThis.requestAnimationFrame === 'function' &&
+    typeof globalThis.cancelAnimationFrame === 'function';
 
   function attachGlobalPointerListeners(): void {
     if (globalPointerListenersAttached) {
@@ -153,8 +156,11 @@
   }
 
   function scheduleDraw(): void {
-    cancelAnimationFrame(raf);
-    raf = requestAnimationFrame(draw);
+    if (!hasRaf || !canvas) {
+      return;
+    }
+    globalThis.cancelAnimationFrame(raf);
+    raf = globalThis.requestAnimationFrame(draw);
   }
 
   function addRect(vertices: number[], row: number, col: number): void {
@@ -455,7 +461,9 @@
   });
 
   onDestroy(() => {
-    cancelAnimationFrame(raf);
+    if (hasRaf) {
+      globalThis.cancelAnimationFrame(raf);
+    }
     resizeObserver?.disconnect();
     activePointerId = null;
     activePointerType = null;

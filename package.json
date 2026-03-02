@@ -1,0 +1,12 @@
+{
+  "name": "pentomanim",
+  "private": true,
+  "scripts": {
+    "dev": "bun run --cwd webgl dev",
+    "build": "bun run --cwd webgl build",
+    "preview": "bun run --cwd webgl preview",
+    "check": "bun run --cwd webgl check",
+    "test:e2e": "bun run --cwd webgl test:e2e",
+    "install:webgl": "bun install --cwd webgl"
+  }
+}
